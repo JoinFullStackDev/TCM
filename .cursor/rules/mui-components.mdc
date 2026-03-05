@@ -1,0 +1,55 @@
+---
+description: MUI component patterns — dark theme customization, M3 styling, grid view
+globs: "**/*.tsx"
+alwaysApply: false
+---
+
+# MUI Component Patterns
+
+## Theme Setup
+
+- Use `createTheme()` with `palette.mode: 'dark'` and custom M3-aligned overrides
+- Background: super dark gray (`#0A0A0F`–`#111118`), surfaces progressively lighter for elevation
+- No shadows on dark backgrounds (they disappear) — use 1px borders in neutral accent + lighter surface grays for elevation
+
+## Component Styling
+
+### Cards & Panels
+- 1px neutral accent border, rounded 8px
+- Surface elevation via progressively lighter grays
+- Hover: elevation lift + primary border glow (150ms)
+
+### Buttons
+- Primary: filled with primary accent, white text, hover glow (box-shadow with accent at low opacity)
+- Secondary: outlined primary border, accent text
+- Destructive: filled error accent, white text
+
+### Inputs & Badges
+- Rounded corners: 4px for inputs/badges, 8px for cards
+- Status badges: filled, rounded, accent background at ~20% with full-color text
+- Active edit cell: primary border at full opacity with inner glow
+
+### MUI X Data Grid (N6)
+- Row hover: primary wash 8% + faint primary left border (150ms)
+- Selected rows: primary wash 15% + solid primary left border
+- No alternating row striping — hover provides contrast
+- Column headers: neutral background (slightly lighter than surface), bold white text
+- Row dividers: neutral at 15% opacity
+- Collapsible groups: suite accent color 4px left border on header row
+- Multi-select: checkbox with primary accent, ripple 150ms
+
+### Filter Bar
+- Chips above grid in horizontal bar
+- Active filter: filled with semantic color of filtered value (e.g., Pass → Success chip)
+- Inactive filter: neutral outlined chip
+
+### Toasts (Snackbar)
+- Slide in from top-right, 300ms in / 200ms out
+- Left border + icon colored by semantic type (success/error/warning/info)
+- Frosted glass effect: `backdrop-filter: blur()` + dark translucent background on tooltips
+
+### Charts (N5)
+- Full accent palette for chart segments
+- Dark grid lines: neutral at 30%
+- Tooltip: frosted glass
+- Bars animate in sequentially (50ms stagger)

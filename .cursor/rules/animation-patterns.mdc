@@ -1,0 +1,54 @@
+---
+description: Framer Motion animation specs — durations, easing, and usage patterns
+globs: "**/*.tsx"
+alwaysApply: false
+---
+
+# Animation & Motion (Framer Motion)
+
+## Principles
+
+- Every animation must be **purposeful** — communicates state change, spatial relationship, or transition
+- Never decorative: no bounce, overshoot, parallax, or 3D transforms
+- Keep snappy: 150–300ms micro-interactions, 300–500ms page/panel transitions, never >500ms for in-page
+
+## Easing
+
+- Entrances: `ease-out`
+- Exits: `ease-in`
+- Morphs/color changes: `ease-in-out`
+
+## Animation Specs
+
+| Context | Animation | Duration |
+|---|---|---|
+| Page transitions | Fade + slide up ~8px | 300ms |
+| Grid row expansion | Height expand + content fade-in | 250ms |
+| Status change (Pass/Fail) | Color morph + brief pulse/glow | 200ms |
+| Sidebar active indicator | Slide to selected item | 200ms ease-out |
+| Modals/drawers | Scale 95%→100% + fade | 250ms |
+| Toast notifications | Slide in from top-right | 300ms in, 200ms out |
+| Data loading | Skeleton shimmer gradient sweep | Continuous |
+| Hover states | Elevation lift + accent border glow | 150ms |
+| Bulk select | Checkbox ripple + row highlight | 150ms |
+| Chart rendering | Sequential bar/segment stagger | 50ms each, 400ms total |
+| Drag-and-drop | Lifted shadow + placeholder ghost | Real-time |
+| Expand/collapse chevron | Rotate 90° | 250ms |
+
+## Framer Motion Patterns
+
+```tsx
+// Page transition wrapper
+<motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, ease: 'easeOut' }}>
+
+// Modal/drawer entrance
+<motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.25 }}>
+
+// Status badge pulse on change
+<motion.span animate={{ scale: [1, 1.15, 1] }} transition={{ duration: 0.2 }}>
+
+// Staggered list (chart bars, cards)
+<motion.div variants={container} initial="hidden" animate="visible">
+  {items.map(item => <motion.div key={item.id} variants={child} />)}
+</motion.div>
+```

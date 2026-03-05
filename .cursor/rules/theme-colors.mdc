@@ -1,0 +1,47 @@
+---
+description: TCM design system — color palette, semantic mappings, and contrast rules
+globs: "**/*.tsx,**/*.ts"
+alwaysApply: false
+---
+
+# Theme & Color System
+
+Dark mode only. Background: super dark gray (`#0A0A0F`–`#111118` range), surface layers progressively lighter for elevation. Not pure black.
+
+## Accent Palette
+
+| Role | Intent | Usage |
+|---|---|---|
+| **Primary** | Electric blue/indigo | Nav highlights, primary buttons, active states, selected rows |
+| **Success** | Vivid teal/green | Pass status, successful ops, positive metrics |
+| **Error** | Warm coral/red | Fail status, errors, destructive actions |
+| **Warning** | Amber/golden | Blocked status, warnings, thresholds |
+| **Info** | Soft violet/purple | Informational badges, automation indicators, links |
+| **Neutral** | Cool slate/muted blue-gray | Borders, dividers, secondary text, inactive states |
+
+## Semantic Mappings
+
+**Execution status:** Pass=Success, Fail=Error, Blocked=Warning, Skip=Neutral, Not Run=Neutral(lighter)
+**Automation status:** IN CICD=Success, SCRIPTED=Info, OUT OF SYNC=Warning, Not Automated=Neutral
+**Platforms:** Desktop=Primary, Tablet=Info, Mobile(future)=Success
+**Roles:** Admin=Error, QA Engineer=Primary, SDET=Info, Viewer=Neutral
+**Suite colors:** Cycle through Primary→Success→Info→Warning→Error (use `color_index` from suites table)
+
+## Color Rules
+
+- All accents: saturation ~70–85%, brightness tuned for dark background contrast (not neon)
+- Raw accent on large surfaces: use at **10–15% opacity** for washes (e.g., selected row background)
+- Status badges: accent background at ~20% opacity with full-color text
+- All interactive elements: **WCAG AA** contrast (4.5:1 text, 3:1 large text/icons)
+- Primary text: `#E8E8ED` range (near-white), secondary text: `#8888A0` range
+- Gradients: acceptable for progress bars, charts — subtle, between adjacent palette colors
+- Filter chips: filled with the **semantic color of the value being filtered**
+
+## Interactive Elements
+
+- Primary button: filled primary, white text; hover: glow shadow
+- Secondary button: outlined primary border, accent text
+- Destructive button: filled error, white text
+- Link text: Info (violet/purple)
+- Selected row: Primary at 15% wash; hovered row: Primary at 8% wash
+- Toasts: left border + icon using semantic color (success/error/warning/info)

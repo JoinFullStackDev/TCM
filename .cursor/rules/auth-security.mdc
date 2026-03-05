@@ -1,0 +1,52 @@
+---
+description: Authentication, authorization, and security patterns for TCM
+alwaysApply: true
+---
+
+# Auth & Security
+
+## Authentication
+
+- Google OAuth 2.0 only via Supabase Auth — no email/password flow
+- `profiles` table auto-created on signup via `create_profile_on_signup()` trigger
+- New users default to `viewer` role until an Admin assigns a different role
+- Invitation flow: Admin creates invitation → user receives email → user signs in with Google → profile linked to invitation role
+
+## Role-Based Access Control
+
+Enforce at **both** layers — never rely on only one:
+
+1. **Database (RLS):** All tables have RLS enabled. Policies check `auth.uid()` against `profiles.role`
+2. **Application (middleware/API):** Verify role before rendering UI controls and in every API handler
+
+### Role Hierarchy
+
+```
+Admin > SDET > QA Engineer > Viewer
+```
+
+- **Viewer:** SELECT only on all data tables. No INSERT/UPDATE/DELETE. Hide all edit buttons, disable keyboard shortcuts, block API writes.
+- **QA Engineer:** Full CRUD on test cases, steps, runs, execution results, annotations. Cannot delete projects or manage users.
+- **SDET:** QA Engineer + automation status management, webhook config, automation file paths
+- **Admin:** Everything + user management (invitations, role assignment), project deletion, integration config
+
+### Permission Check Pattern
+
+```typescript
+// Server-side: always verify in API routes
+const { data: { user } } = await supabase.auth.getUser();
+const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+if (!['admin', 'qa_engineer', 'sdet'].includes(profile.role)) {
+  return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+}
+```
+
+## Security Rules
+
+- Never trust client-side role checks alone — always validate server-side
+- Sanitize all user inputs (CSV data, form fields, webhook payloads)
+- Webhook endpoints: validate payload structure and use API key auth (not user session)
+- File uploads: validate mime type (images only for screenshots), enforce size limits
+- Never expose Supabase `service_role` key to the browser
+- Use `supabase.auth.getUser()` for auth checks, never rely on JWT alone without server verification
+- Rate limit webhook and import endpoints to prevent abuse
