@@ -221,11 +221,11 @@ function SortableStepRow({
         {renderTextCell('description', step.description, isEditingDesc, 120)}
       </TableCell>
 
-      <TableCell sx={{ width: 100 }}>
-        {renderTextCell('test_data', step.test_data, isEditingData, 60)}
+      <TableCell sx={{ width: 180, wordBreak: 'break-word', whiteSpace: 'normal' }}>
+        {renderTextCell('test_data', step.test_data, isEditingData, 80)}
       </TableCell>
 
-      <TableCell sx={{ width: 180 }}>
+      <TableCell sx={{ width: 180, wordBreak: 'break-word', whiteSpace: 'normal' }}>
         {renderTextCell('expected_result', step.expected_result, isEditingExpected, 80)}
       </TableCell>
 
@@ -469,7 +469,7 @@ export default function StepDetailPanel({
             <TableRow>
               <TableCell sx={{ fontWeight: 600, fontSize: '0.7rem', color: 'text.secondary', width: 60 }}>#</TableCell>
               <TableCell sx={{ fontWeight: 600, fontSize: '0.7rem', color: 'text.secondary', width: 280 }}>Test Step Description</TableCell>
-              <TableCell sx={{ fontWeight: 600, fontSize: '0.7rem', color: 'text.secondary', width: 100 }}>Test Data</TableCell>
+              <TableCell sx={{ fontWeight: 600, fontSize: '0.7rem', color: 'text.secondary', width: 180 }}>Test Data</TableCell>
               <TableCell sx={{ fontWeight: 600, fontSize: '0.7rem', color: 'text.secondary', width: 180 }}>Expected Result</TableCell>
               {canWrite && (
                 <TableCell sx={{ fontWeight: 600, fontSize: '0.7rem', color: 'text.secondary', width: 40 }}>Auto</TableCell>
