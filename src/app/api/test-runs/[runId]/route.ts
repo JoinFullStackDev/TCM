@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { withAuth, validationError, notFound, serverError } from '@/lib/api/helpers';
 import { updateTestRunSchema } from '@/lib/validations/test-run';
+import { dispatchSlackNotifications } from '@/lib/slack/dispatch';
 
 interface RouteContext {
   params: Promise<{ runId: string }>;
@@ -52,6 +53,13 @@ export async function PATCH(request: Request, context: RouteContext) {
     .single();
 
   if (error || !run) return notFound('Test run');
+
+  if (parsed.data.status === 'completed' || parsed.data.status === 'aborted') {
+    const origin = request.headers.get('origin') ?? process.env.NEXT_PUBLIC_APP_URL ?? '';
+    dispatchSlackNotifications(runId, origin).catch((err) =>
+      console.error('[Slack dispatch] Error:', err),
+    );
+  }
 
   return NextResponse.json(run);
 }

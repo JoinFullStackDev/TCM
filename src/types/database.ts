@@ -230,3 +230,25 @@ export interface GridColumnPreferences {
   created_at: string;
   updated_at: string;
 }
+
+export type IntegrationType = 'slack' | 'gitlab';
+
+export interface SlackConfig {
+  webhook_url: string;
+  channel: string;
+  failure_threshold: number;
+  mention_usergroups: string[];
+  notify_on: 'all' | 'failures_only';
+}
+
+export interface Integration {
+  id: string;
+  project_id: string;
+  suite_id: string | null;
+  type: IntegrationType;
+  config: SlackConfig | Record<string, unknown>;
+  is_active: boolean;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
