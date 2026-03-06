@@ -135,10 +135,9 @@ export async function POST(request: Request) {
   const parsed = createTestCaseSchema.safeParse(body);
   if (!parsed.success) return validationError(parsed.error.flatten());
 
-  const { data: idResult, error: rpcError } = await supabase.rpc(
-    'generate_test_case_id',
-    { p_suite_id: parsed.data.suite_id },
-  );
+  const { data: idResult, error: rpcError } = await supabase
+    .rpc('generate_test_case_id', { p_suite_id: parsed.data.suite_id })
+    .single();
 
   if (rpcError || !idResult) {
     return serverError(rpcError?.message ?? 'Failed to generate test case ID');
