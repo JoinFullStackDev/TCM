@@ -4,6 +4,9 @@ import { useMemo, useCallback } from 'react';
 import Box from '@mui/material/Box';
 import Chip from '@mui/material/Chip';
 import Typography from '@mui/material/Typography';
+import IconButton from '@mui/material/IconButton';
+import Tooltip from '@mui/material/Tooltip';
+import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import {
   DataGridPro,
   useGridApiRef,
@@ -24,7 +27,11 @@ import AutomationBadge from './AutomationBadge';
 import PlatformChips from './PlatformChips';
 import CombinedStatusDisplay from '@/components/execution/CombinedStatusDisplay';
 import StepDetailPanel, { type StepWithStatus } from './StepDetailPanel';
-import type { TestCase, AutomationStatus, Platform, Priority, ExecutionStatus, TestCaseCategory } from '@/types/database';
+import PlatformTagsEditCell from './edit-cells/PlatformTagsEditCell';
+import TagsEditCell from './edit-cells/TagsEditCell';
+import TextPopoverEditCell from './edit-cells/TextPopoverEditCell';
+import type { TestCase, AutomationStatus, Platform, Priority, ExecutionStatus, TestCaseCategory, TestCaseType } from '@/types/database';
+import type { StepData } from './StepEditor';
 
 export interface TestCaseRow extends TestCase {
   suite_name?: string;
@@ -72,6 +79,11 @@ const CATEGORY_OPTIONS = [
   { value: 'usability', label: 'Usability' },
 ];
 
+const TYPE_OPTIONS = [
+  { value: 'functional', label: 'Functional' },
+  { value: 'performance', label: 'Performance' },
+];
+
 const CATEGORY_COLORS: Record<string, string> = {
   smoke: palette.warning.main,
   regression: palette.primary.main,
@@ -92,8 +104,9 @@ interface TestCaseDataGridProps {
   loading?: boolean;
   selectedIds?: string[];
   onSelectionChange?: (ids: string[]) => void;
-  onRowClick?: (testCase: TestCaseRow) => void;
+  onOpenDrawer?: (testCase: TestCaseRow) => void;
   onRowUpdate?: (id: string, updates: Partial<TestCase>) => Promise<TestCaseRow | null>;
+  onStepsUpdate?: (testCaseId: string, steps: StepData[]) => Promise<void>;
   columnVisibilityModel?: GridColumnVisibilityModel;
   onColumnVisibilityChange?: (model: GridColumnVisibilityModel) => void;
   onColumnWidthChange?: GridEventListener<'columnWidthChange'>;
@@ -115,8 +128,9 @@ export default function TestCaseDataGrid({
   loading = false,
   selectedIds,
   onSelectionChange,
-  onRowClick,
+  onOpenDrawer,
   onRowUpdate,
+  onStepsUpdate,
   columnVisibilityModel,
   onColumnVisibilityChange,
   onColumnWidthChange,
@@ -136,28 +150,31 @@ export default function TestCaseDataGrid({
     (params: GridRowParams<TestCaseRow>) => {
       const row = params.row;
       if (row.treePath && row.treePath.length === 1) return null;
-      if (!row.test_steps || row.test_steps.length === 0) return null;
+      const hasSteps = row.test_steps && row.test_steps.length > 0;
+      if (!hasSteps && !canWrite) return null;
       return (
         <StepDetailPanel
-          steps={row.test_steps}
+          steps={row.test_steps ?? []}
           platforms={(row.platform_tags?.length > 0 ? row.platform_tags : ['desktop']) as Platform[]}
           canWrite={canWrite}
           selectedRunId={selectedRunId}
           testCaseId={row.id}
           onStatusChange={onStepStatusChange ? (stepId, platform, status) => onStepStatusChange(row.id, stepId, platform, status) : undefined}
+          onStepsUpdate={onStepsUpdate}
         />
       );
     },
-    [canWrite, selectedRunId, onStepStatusChange],
+    [canWrite, selectedRunId, onStepStatusChange, onStepsUpdate],
   );
 
   const getDetailPanelHeight = useCallback(
     (params: GridRowParams<TestCaseRow>) => {
       const stepCount = params.row.test_steps?.length ?? 0;
-      if (stepCount === 0) return 0;
-      return Math.min(44 + stepCount * 36, 400);
+      if (stepCount === 0 && !canWrite) return 0;
+      const addButtonRow = canWrite ? 44 : 0;
+      return Math.min(44 + Math.max(stepCount, 0) * 44 + addButtonRow, 500);
     },
-    [],
+    [canWrite],
   );
 
   const processRowUpdate = useCallback(
@@ -166,10 +183,17 @@ export default function TestCaseDataGrid({
 
       const updates: Partial<TestCase> = {};
       if (newRow.title !== oldRow.title) updates.title = newRow.title;
+      if (newRow.description !== oldRow.description) updates.description = newRow.description;
+      if (newRow.precondition !== oldRow.precondition) updates.precondition = newRow.precondition;
       if (newRow.automation_status !== oldRow.automation_status)
         updates.automation_status = newRow.automation_status;
       if (newRow.priority !== oldRow.priority) updates.priority = newRow.priority;
       if (newRow.category !== oldRow.category) updates.category = newRow.category;
+      if (newRow.type !== oldRow.type) updates.type = newRow.type;
+      if (JSON.stringify(newRow.platform_tags) !== JSON.stringify(oldRow.platform_tags))
+        updates.platform_tags = newRow.platform_tags;
+      if (JSON.stringify(newRow.tags) !== JSON.stringify(oldRow.tags))
+        updates.tags = newRow.tags;
 
       if (Object.keys(updates).length === 0) return oldRow;
 
@@ -237,9 +261,11 @@ export default function TestCaseDataGrid({
         width: columnWidths?.platform_tags ?? 180,
         sortable: false,
         filterable: false,
+        editable: canWrite,
         renderCell: (params: GridRenderCellParams<TestCaseRow>) => (
           <PlatformChips platforms={(params.value as Platform[]) ?? []} />
         ),
+        renderEditCell: (params) => <PlatformTagsEditCell {...params} />,
       },
       {
         field: 'platform_status',
@@ -311,6 +337,9 @@ export default function TestCaseDataGrid({
         headerName: 'Type',
         width: columnWidths?.type ?? 110,
         sortable: true,
+        editable: canWrite,
+        type: 'singleSelect',
+        valueOptions: TYPE_OPTIONS,
         renderCell: (params: GridRenderCellParams<TestCaseRow>) => {
           if (!params.value) return null;
           const label = params.value === 'functional' ? 'Functional' : 'Performance';
@@ -330,6 +359,7 @@ export default function TestCaseDataGrid({
         width: columnWidths?.tags ?? 160,
         sortable: false,
         filterable: false,
+        editable: canWrite,
         renderCell: (params: GridRenderCellParams<TestCaseRow>) => {
           const tags = (params.value as string[]) ?? [];
           if (tags.length === 0) return null;
@@ -347,6 +377,41 @@ export default function TestCaseDataGrid({
             </Box>
           );
         },
+        renderEditCell: (params) => <TagsEditCell {...params} />,
+      },
+      {
+        field: 'description',
+        headerName: 'Description',
+        width: columnWidths?.description ?? 180,
+        sortable: false,
+        editable: canWrite,
+        renderCell: (params: GridRenderCellParams<TestCaseRow>) => {
+          const val = params.value as string | null;
+          if (!val) return <Typography variant="caption" sx={{ color: 'text.disabled' }}>--</Typography>;
+          return (
+            <Typography variant="caption" sx={{ fontSize: '0.75rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {val}
+            </Typography>
+          );
+        },
+        renderEditCell: (params) => <TextPopoverEditCell {...params} />,
+      },
+      {
+        field: 'precondition',
+        headerName: 'Precondition',
+        width: columnWidths?.precondition ?? 160,
+        sortable: false,
+        editable: canWrite,
+        renderCell: (params: GridRenderCellParams<TestCaseRow>) => {
+          const val = params.value as string | null;
+          if (!val) return <Typography variant="caption" sx={{ color: 'text.disabled' }}>--</Typography>;
+          return (
+            <Typography variant="caption" sx={{ fontSize: '0.75rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {val}
+            </Typography>
+          );
+        },
+        renderEditCell: (params) => <TextPopoverEditCell {...params} />,
       },
       {
         field: 'updated_at',
@@ -365,6 +430,35 @@ export default function TestCaseDataGrid({
       },
     ];
 
+    if (onOpenDrawer) {
+      cols.push({
+        field: 'actions',
+        headerName: '',
+        width: 50,
+        sortable: false,
+        filterable: false,
+        disableColumnMenu: true,
+        disableReorder: true,
+        renderCell: (params: GridRenderCellParams<TestCaseRow>) => {
+          if (params.row.treePath && params.row.treePath.length === 1) return null;
+          return (
+            <Tooltip title="Open in drawer">
+              <IconButton
+                size="small"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpenDrawer(params.row);
+                }}
+                sx={{ color: 'text.secondary', '&:hover': { color: palette.primary.main } }}
+              >
+                <OpenInNewIcon sx={{ fontSize: 16 }} />
+              </IconButton>
+            </Tooltip>
+          );
+        },
+      });
+    }
+
     if (columnOrder && columnOrder.length > 0) {
       const orderMap = new Map(columnOrder.map((field, idx) => [field, idx]));
       cols.sort((a, b) => {
@@ -375,7 +469,7 @@ export default function TestCaseDataGrid({
     }
 
     return cols;
-  }, [canWrite, columnOrder, columnWidths]);
+  }, [canWrite, columnOrder, columnWidths, onOpenDrawer]);
 
   const groupingColDef = useMemo<GridGroupingColDefOverride<TestCaseRow>>(
     () => ({
@@ -427,14 +521,6 @@ export default function TestCaseDataGrid({
   const getTreeDataPath = useCallback(
     (row: TestCaseRow) => row.treePath ?? [row.display_id],
     [],
-  );
-
-  const handleRowClick = useCallback(
-    (params: GridRowParams<TestCaseRow>) => {
-      if (params.row.treePath && params.row.treePath.length === 1) return;
-      if (onRowClick) onRowClick(params.row);
-    },
-    [onRowClick],
   );
 
   const handleSelectionChange = useCallback(
@@ -565,7 +651,6 @@ export default function TestCaseDataGrid({
         rowSelectionModel={{ type: 'include', ids: new Set(selectedIds ?? []) }}
         onRowSelectionModelChange={handleSelectionChange}
         isRowSelectable={(params) => isGroupSelectableRow(params.row)}
-        onRowClick={handleRowClick}
         processRowUpdate={processRowUpdate}
         onProcessRowUpdateError={(error) => console.error('Row update error:', error)}
         isCellEditable={(params) => canWrite && (!params.row.treePath || params.row.treePath.length > 1)}

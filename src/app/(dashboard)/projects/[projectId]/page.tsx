@@ -253,6 +253,33 @@ export default function ProjectDetailPage() {
     }
   };
 
+  const handleStepsUpdate = useCallback(async (testCaseId: string, steps: { step_number: number; description: string; test_data: string | null; expected_result: string | null; is_automation_only: boolean; category?: string | null }[]) => {
+    setSaveStatus('saving');
+    try {
+      const res = await fetch(`/api/test-cases/${testCaseId}/steps`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ steps }),
+      });
+      if (res.ok) {
+        const newSteps = await res.json();
+        setGridTestCases((prev) =>
+          prev.map((tc) => {
+            if (tc.id !== testCaseId) return tc;
+            return { ...tc, test_steps: newSteps } as TestCase;
+          }),
+        );
+        setSaveStatus('saved');
+        if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = setTimeout(() => setSaveStatus('idle'), 2000);
+      } else {
+        setSaveStatus('error');
+      }
+    } catch {
+      setSaveStatus('error');
+    }
+  }, []);
+
   const handleBulkApply = async (updates: BulkEditUpdates) => {
     if (selectedIds.length === 0) return;
     try {
@@ -551,8 +578,9 @@ export default function ProjectDetailPage() {
               loading={gridLoading}
               selectedIds={selectedIds}
               onSelectionChange={setSelectedIds}
-              onRowClick={handleGridRowClick}
+              onOpenDrawer={handleGridRowClick}
               onRowUpdate={handleRowUpdate}
+              onStepsUpdate={handleStepsUpdate}
               columnVisibilityModel={columnVisibility}
               onColumnVisibilityChange={handleColumnVisibilityChange}
               onColumnWidthChange={handleColumnWidthChange}

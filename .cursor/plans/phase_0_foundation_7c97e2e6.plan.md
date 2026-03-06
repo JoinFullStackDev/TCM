@@ -140,8 +140,8 @@ Included in the same migration file:
 
 - `**update_updated_at()`** — trigger function setting `updated_at = now()` on UPDATE. Applied to all tables with `updated_at`.
 - `**create_profile_on_signup()`** — trigger on `auth.users` INSERT that creates a `profiles` row from OAuth metadata (email, full_name, avatar_url). Default role: `viewer`.
-- `**generate_test_case_id(suite_id)**` — atomically reads `suites.next_sequence`, constructs `display_id = prefix || '-' || next_sequence`, increments `next_sequence`. Uses `SELECT ... FOR UPDATE` row lock.
-- `**snapshot_test_case_version()**` — trigger on `test_cases` UPDATE that captures current state + steps as JSONB into `test_case_versions`.
+- `**generate_test_case_id(suite_id)`** — atomically reads `suites.next_sequence`, constructs `display_id = prefix || '-' || next_sequence`, increments `next_sequence`. Uses `SELECT ... FOR UPDATE` row lock.
+- `**snapshot_test_case_version()`** — trigger on `test_cases` UPDATE that captures current state + steps as JSONB into `test_case_versions`.
 
 ---
 
@@ -195,7 +195,7 @@ These sit in the ~70-85% saturation band per the design system, meet WCAG AA on 
 
 `**src/app/auth/callback/route.ts`** — exchanges the OAuth code for a session using `supabase.auth.exchangeCodeForSession(code)`, then redirects to `/`.
 
-`**src/middleware.ts**` — (already described in 0.2) handles session refresh and auth-based redirects on every request.
+`**src/middleware.ts`** — (already described in 0.2) handles session refresh and auth-based redirects on every request.
 
 The `create_profile_on_signup()` trigger (from 0.4) auto-creates the `profiles` row on first sign-in.
 
