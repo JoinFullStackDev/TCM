@@ -1,6 +1,6 @@
 # TCM — Test Case Management
 
-[![Vercel Deploy](https://deploy-badge.vercel.app/vercel/tcm?style=flat)](https://vercel.com/joinfullstackdev/tcm)
+[![Vercel Deploy](https://deploy-badge.vercel.app/vercel/tcm-ochre?style=flat)](https://tcm-ochre.vercel.app)
 
 Internal test case management tool replacing Google Sheets test plans. Built for ~20-25 users across 4 roles, managing 10+ projects/year with thousands of test cases per project.
 
