@@ -27,10 +27,6 @@ export async function GET(request: NextRequest) {
 
     const { error } = await supabase.auth.exchangeCodeForSession(code);
 
-    console.log('[auth/callback] exchangeCodeForSession error:', error?.message ?? 'none');
-    console.log('[auth/callback] pendingCookies count:', pendingCookies.length);
-    console.log('[auth/callback] cookie names:', pendingCookies.map(c => c.name).join(', '));
-
     if (!error) {
       if (inviteToken) {
         await processInvitation(supabase, inviteToken);
@@ -48,19 +44,16 @@ export async function GET(request: NextRequest) {
         redirectUrl = `${origin}${next}`;
       }
 
-      console.log('[auth/callback] redirecting to:', redirectUrl);
-
       const response = NextResponse.redirect(redirectUrl);
 
       pendingCookies.forEach(({ name, value, options }) => {
-        response.cookies.set(name, value, options);
+        response.cookies.set(name, value, { ...options, httpOnly: false });
       });
 
       return response;
     }
   }
 
-  console.log('[auth/callback] FAILED - no code or exchange error, redirecting to login');
   return NextResponse.redirect(`${new URL(request.url).origin}/login?error=auth`);
 }
 
