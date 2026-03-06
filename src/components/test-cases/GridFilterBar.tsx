@@ -29,6 +29,7 @@ interface FilterValues {
   tags: string[];
   execution_status: ExecutionStatus[];
   category: TestCaseCategory[];
+  suite_ids: string[];
 }
 
 interface TestRunOption {
@@ -36,10 +37,17 @@ interface TestRunOption {
   name: string;
 }
 
+interface SuiteOption {
+  id: string;
+  name: string;
+  prefix: string;
+}
+
 interface GridFilterBarProps {
   filters: FilterValues;
   onFiltersChange: (filters: FilterValues) => void;
   availableTags: string[];
+  suites?: SuiteOption[];
   runs?: TestRunOption[];
   selectedRunId?: string | null;
   onRunChange?: (runId: string | null) => void;
@@ -118,10 +126,11 @@ const FILTER_DEFS: FilterDef[] = [
   },
 ];
 
-export default function GridFilterBar({ filters, onFiltersChange, availableTags, runs, selectedRunId, onRunChange }: GridFilterBarProps) {
+export default function GridFilterBar({ filters, onFiltersChange, availableTags, suites, runs, selectedRunId, onRunChange }: GridFilterBarProps) {
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
   const [activeFilter, setActiveFilter] = useState<FilterDef | null>(null);
   const [tagAnchorEl, setTagAnchorEl] = useState<HTMLElement | null>(null);
+  const [suiteAnchorEl, setSuiteAnchorEl] = useState<HTMLElement | null>(null);
 
   const hasActiveFilters = useMemo(
     () =>
@@ -131,7 +140,8 @@ export default function GridFilterBar({ filters, onFiltersChange, availableTags,
       filters.type.length > 0 ||
       filters.tags.length > 0 ||
       filters.execution_status.length > 0 ||
-      filters.category.length > 0,
+      filters.category.length > 0 ||
+      filters.suite_ids.length > 0,
     [filters],
   );
 
@@ -163,8 +173,19 @@ export default function GridFilterBar({ filters, onFiltersChange, availableTags,
       tags: [],
       execution_status: [],
       category: [],
+      suite_ids: [],
     });
   }, [onFiltersChange]);
+
+  const handleToggleSuite = useCallback(
+    (suiteId: string) => {
+      const next = filters.suite_ids.includes(suiteId)
+        ? filters.suite_ids.filter((id) => id !== suiteId)
+        : [...filters.suite_ids, suiteId];
+      onFiltersChange({ ...filters, suite_ids: next });
+    },
+    [filters, onFiltersChange],
+  );
 
   const handleToggleTag = useCallback(
     (tag: string) => {
@@ -189,6 +210,40 @@ export default function GridFilterBar({ filters, onFiltersChange, availableTags,
       }}
     >
       <FilterListIcon sx={{ fontSize: 18, color: 'text.secondary', mr: 0.5 }} />
+
+      {suites && suites.length > 1 && (
+        <Chip
+          label={
+            filters.suite_ids.length > 0
+              ? filters.suite_ids.length === 1
+                ? `Suite: ${suites.find((s) => s.id === filters.suite_ids[0])?.prefix ?? '1 selected'}`
+                : `Suite: ${filters.suite_ids.length} selected`
+              : 'Suite'
+          }
+          size="small"
+          variant={filters.suite_ids.length > 0 ? 'filled' : 'outlined'}
+          onClick={(e) => setSuiteAnchorEl(e.currentTarget)}
+          onDelete={
+            filters.suite_ids.length > 0
+              ? () => onFiltersChange({ ...filters, suite_ids: [] })
+              : undefined
+          }
+          sx={{
+            height: 28,
+            fontSize: '0.75rem',
+            fontWeight: 500,
+            ...(filters.suite_ids.length > 0
+              ? {
+                  bgcolor: alpha(palette.primary.main, 0.15),
+                  color: palette.primary.main,
+                }
+              : {
+                  borderColor: alpha(palette.neutral.main, 0.3),
+                  color: palette.text.secondary,
+                }),
+          }}
+        />
+      )}
 
       {FILTER_DEFS.map((def) => {
         const active = (filters[def.key] as string[]);
@@ -398,6 +453,63 @@ export default function GridFilterBar({ filters, onFiltersChange, availableTags,
         ) : (
           <Typography variant="caption" sx={{ p: 2, display: 'block' }}>
             No tags available
+          </Typography>
+        )}
+      </Popover>
+
+      <Popover
+        open={Boolean(suiteAnchorEl)}
+        anchorEl={suiteAnchorEl}
+        onClose={() => setSuiteAnchorEl(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'left' }}
+        slotProps={{
+          paper: {
+            sx: {
+              bgcolor: palette.background.surface2,
+              border: `1px solid ${palette.divider}`,
+              mt: 0.5,
+              minWidth: 220,
+              maxHeight: 300,
+            },
+          },
+        }}
+      >
+        {suites && suites.length > 0 ? (
+          <List dense disablePadding sx={{ py: 0.5, overflow: 'auto' }}>
+            {suites.map((s) => (
+              <ListItemButton
+                key={s.id}
+                onClick={() => handleToggleSuite(s.id)}
+                dense
+                sx={{ px: 1.5 }}
+              >
+                <Checkbox
+                  size="small"
+                  checked={filters.suite_ids.includes(s.id)}
+                  sx={{ p: 0.5, mr: 1 }}
+                />
+                <Chip
+                  label={s.prefix}
+                  size="small"
+                  sx={{
+                    height: 18,
+                    fontSize: '0.6rem',
+                    fontWeight: 700,
+                    fontFamily: 'monospace',
+                    mr: 1,
+                  }}
+                />
+                <ListItemText
+                  primary={s.name}
+                  primaryTypographyProps={{ fontSize: '0.8rem' }}
+                />
+              </ListItemButton>
+            ))}
+          </List>
+        ) : (
+          <Typography variant="caption" sx={{ p: 2, display: 'block' }}>
+            No suites available
           </Typography>
         )}
       </Popover>

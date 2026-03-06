@@ -67,6 +67,7 @@ export default function SuiteViewPage() {
     tags: [],
     execution_status: [],
     category: [],
+    suite_ids: [],
   });
 
   const canWrite = can('write');

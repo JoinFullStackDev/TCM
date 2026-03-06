@@ -38,6 +38,14 @@ export const reorderSuitesSchema = z.object({
   ).min(1),
 });
 
+export const mergeSuitesSchema = z.object({
+  source_suite_id: z.string().uuid(),
+  target_suite_id: z.string().uuid(),
+}).refine((d) => d.source_suite_id !== d.target_suite_id, {
+  message: 'Source and target suites must be different',
+});
+
 export type CreateSuiteInput = z.infer<typeof createSuiteSchema>;
 export type UpdateSuiteInput = z.infer<typeof updateSuiteSchema>;
 export type ReorderSuitesInput = z.infer<typeof reorderSuitesSchema>;
+export type MergeSuitesInput = z.infer<typeof mergeSuitesSchema>;

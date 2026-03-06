@@ -20,6 +20,7 @@ import AddIcon from '@mui/icons-material/Add';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import MergeOutlinedIcon from '@mui/icons-material/CallMergeOutlined';
 import ViewListOutlinedIcon from '@mui/icons-material/ViewListOutlined';
 import GridViewOutlinedIcon from '@mui/icons-material/GridViewOutlined';
 import TableChartOutlinedIcon from '@mui/icons-material/TableChartOutlined';
@@ -32,15 +33,16 @@ import PageTransition from '@/components/animations/PageTransition';
 import SuiteList from '@/components/suites/SuiteList';
 import CreateSuiteDialog from '@/components/suites/CreateSuiteDialog';
 import EditSuiteDialog from '@/components/suites/EditSuiteDialog';
+import MergeSuiteDialog from '@/components/suites/MergeSuiteDialog';
 import ConfirmDialog from '@/components/common/ConfirmDialog';
 import EmptyState from '@/components/common/EmptyState';
 import TestCaseDataGrid, { type TestCaseRow } from '@/components/test-cases/TestCaseDataGrid';
 import TestCaseDrawer from '@/components/test-cases/TestCaseDrawer';
 import BulkEditToolbar, { type BulkEditUpdates } from '@/components/test-cases/BulkEditToolbar';
 import GridFilterBar, { type FilterValues } from '@/components/test-cases/GridFilterBar';
-import GridToolbar, { type SaveStatus } from '@/components/test-cases/GridToolbar';
+import GridToolbar, { type SaveStatus, type TestRunOption } from '@/components/test-cases/GridToolbar';
 import { useAuth } from '@/components/providers/AuthProvider';
-import type { Project, Suite, TestCase } from '@/types/database';
+import type { Project, Suite, TestCase, ExecutionStatus, Platform } from '@/types/database';
 
 interface SuiteWithCount extends Suite {
   test_case_count: number;
@@ -76,12 +78,16 @@ export default function ProjectDetailPage() {
 
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
   const [menuSuite, setMenuSuite] = useState<SuiteWithCount | null>(null);
+  const [mergeOpen, setMergeOpen] = useState(false);
+  const [mergeSuite, setMergeSuite] = useState<SuiteWithCount | null>(null);
 
   const [gridTestCases, setGridTestCases] = useState<TestCaseRow[]>([]);
   const [gridLoading, setGridLoading] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [runs, setRuns] = useState<TestRunOption[]>([]);
+  const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerTestCaseId, setDrawerTestCaseId] = useState<string | null>(null);
@@ -99,6 +105,7 @@ export default function ProjectDetailPage() {
     tags: [],
     execution_status: [],
     category: [],
+    suite_ids: [],
   });
 
   const canWrite = can('write');
@@ -131,7 +138,9 @@ export default function ProjectDetailPage() {
   const fetchGridTestCases = useCallback(async () => {
     setGridLoading(true);
     try {
-      const res = await fetch(`/api/projects/${projectId}/test-cases?include_status=true&include_steps=true`);
+      let url = `/api/projects/${projectId}/test-cases?include_status=true&include_steps=true`;
+      if (selectedRunId) url += `&run_id=${selectedRunId}`;
+      const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
         setGridTestCases(Array.isArray(data) ? data : []);
@@ -139,7 +148,7 @@ export default function ProjectDetailPage() {
     } finally {
       setGridLoading(false);
     }
-  }, [projectId]);
+  }, [projectId, selectedRunId]);
 
   const fetchGridPreferences = useCallback(async () => {
     try {
@@ -157,6 +166,40 @@ export default function ProjectDetailPage() {
     }
   }, [projectId]);
 
+  const fetchRuns = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/test-runs?project_id=${projectId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setRuns(
+          (Array.isArray(data) ? data : []).map((r: { id: string; name: string }) => ({
+            id: r.id,
+            name: r.name,
+          })),
+        );
+      }
+    } catch {
+      // ignore
+    }
+  }, [projectId]);
+
+  const handleRunChange = useCallback((runId: string | null) => {
+    setSelectedRunId(runId);
+  }, []);
+
+  const handleStepStatusChange = useCallback(
+    async (testCaseId: string, stepId: string, platform: Platform, status: ExecutionStatus) => {
+      if (!selectedRunId) return;
+      await fetch(`/api/test-runs/${selectedRunId}/results`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ test_case_id: testCaseId, test_step_id: stepId, platform, status }),
+      });
+      fetchGridTestCases();
+    },
+    [selectedRunId, fetchGridTestCases],
+  );
+
   useEffect(() => {
     if (!authLoading) {
       Promise.all([fetchProject(), fetchSuites()]).finally(() => setLoading(false));
@@ -167,8 +210,9 @@ export default function ProjectDetailPage() {
     if (viewMode === 'grid') {
       fetchGridTestCases();
       fetchGridPreferences();
+      fetchRuns();
     }
-  }, [viewMode, fetchGridTestCases, fetchGridPreferences]);
+  }, [viewMode, fetchGridTestCases, fetchGridPreferences, fetchRuns]);
 
   useEffect(() => {
     return () => {
@@ -362,6 +406,11 @@ export default function ProjectDetailPage() {
 
   const filteredGridTestCases = useMemo(() => {
     return gridTestCases.filter((tc) => {
+      if (
+        filters.suite_ids.length > 0 &&
+        !filters.suite_ids.includes(tc.suite_id)
+      )
+        return false;
       if (
         filters.automation_status.length > 0 &&
         !filters.automation_status.includes(tc.automation_status)
@@ -558,6 +607,10 @@ export default function ProjectDetailPage() {
               filters={filters}
               onFiltersChange={setFilters}
               availableTags={availableTags}
+              suites={suites.map((s) => ({ id: s.id, name: s.name, prefix: s.prefix }))}
+              runs={runs}
+              selectedRunId={selectedRunId}
+              onRunChange={handleRunChange}
             />
 
             {canWrite && (
@@ -587,8 +640,10 @@ export default function ProjectDetailPage() {
               onColumnOrderChange={handleColumnOrderChange}
               columnOrder={columnConfig.columnOrder}
               columnWidths={columnConfig.columnWidths}
+              selectedRunId={selectedRunId}
+              onStepStatusChange={handleStepStatusChange}
               slots={{ toolbar: GridToolbar }}
-              slotProps={{ toolbar: { saveStatus } }}
+              slotProps={{ toolbar: { saveStatus, runs, selectedRunId, onRunChange: handleRunChange } }}
             />
           </Box>
         )}
@@ -608,6 +663,22 @@ export default function ProjectDetailPage() {
             </ListItemIcon>
             <ListItemText>Edit</ListItemText>
           </MenuItem>
+          {canDelete && suites.length > 1 && (
+            <MenuItem
+              onClick={() => {
+                if (menuSuite) {
+                  setMergeSuite(menuSuite);
+                  setMergeOpen(true);
+                }
+                handleMenuClose();
+              }}
+            >
+              <ListItemIcon>
+                <MergeOutlinedIcon fontSize="small" />
+              </ListItemIcon>
+              <ListItemText>Merge into...</ListItemText>
+            </MenuItem>
+          )}
           {canDelete && (
             <MenuItem
               onClick={() => {
@@ -645,6 +716,21 @@ export default function ProjectDetailPage() {
           existingGroups={existingGroups}
           onClose={() => setEditOpen(false)}
           onUpdated={() => {
+            fetchSuites();
+            if (viewMode === 'grid') fetchGridTestCases();
+          }}
+        />
+
+        <MergeSuiteDialog
+          open={mergeOpen}
+          sourceSuite={mergeSuite}
+          projectId={projectId}
+          suites={suites}
+          onClose={() => {
+            setMergeOpen(false);
+            setMergeSuite(null);
+          }}
+          onMerged={() => {
             fetchSuites();
             if (viewMode === 'grid') fetchGridTestCases();
           }}
