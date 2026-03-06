@@ -22,7 +22,7 @@ import PlaylistPlayIcon from '@mui/icons-material/PlaylistPlay';
 import AssessmentOutlinedIcon from '@mui/icons-material/AssessmentOutlined';
 import PeopleOutlineIcon from '@mui/icons-material/PeopleOutline';
 import WebhookOutlinedIcon from '@mui/icons-material/WebhookOutlined';
-// collapse toggle moved to TopBar
+import MenuBookOutlinedIcon from '@mui/icons-material/MenuBookOutlined';
 import FiberManualRecordIcon from '@mui/icons-material/FiberManualRecord';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
@@ -376,6 +376,66 @@ export default function Sidebar({ collapsed }: { collapsed: boolean }) {
             </Box>
           );
         })}
+      </List>
+
+      <Divider />
+
+      {/* Knowledge Base — visible to all roles */}
+      <List sx={{ px: 1, py: 1 }}>
+        {(() => {
+          const kbHref = '/knowledge-base';
+          const kbActive = pathname.startsWith(kbHref);
+          return (
+            <Tooltip title={collapsed ? 'Knowledge Base' : ''} placement="right">
+              <ListItemButton
+                component={Link}
+                href={kbHref}
+                selected={kbActive}
+                sx={{
+                  minHeight: 40,
+                  px: collapsed ? 1.5 : 2,
+                  justifyContent: collapsed ? 'center' : 'flex-start',
+                  position: 'relative',
+                  overflow: 'hidden',
+                }}
+              >
+                {kbActive && (
+                  <motion.div
+                    layoutId="sidebar-indicator"
+                    style={{
+                      position: 'absolute',
+                      left: 0,
+                      top: 0,
+                      bottom: 0,
+                      width: 3,
+                      backgroundColor: palette.primary.main,
+                      borderRadius: '0 2px 2px 0',
+                    }}
+                    transition={{ duration: 0.2, ease: 'easeOut' }}
+                  />
+                )}
+                <ListItemIcon
+                  sx={{
+                    minWidth: collapsed ? 0 : 36,
+                    color: kbActive ? 'primary.main' : 'text.secondary',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <MenuBookOutlinedIcon />
+                </ListItemIcon>
+                {!collapsed && (
+                  <ListItemText
+                    primary="Knowledge Base"
+                    primaryTypographyProps={{
+                      fontSize: '0.8125rem',
+                      fontWeight: kbActive ? 600 : 400,
+                    }}
+                  />
+                )}
+              </ListItemButton>
+            </Tooltip>
+          );
+        })()}
       </List>
 
       <Divider />

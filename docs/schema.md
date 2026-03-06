@@ -1,6 +1,6 @@
 # Database Schema (ERD)
 
-> Supabase Postgres — designed for MVP (N1–N8) with forward-compatible placeholders for SOON features (S1–S7).
+> Supabase Postgres — designed for TestForge MVP (N1–N8) with forward-compatible placeholders for SOON features (S1–S7) and post-MVP enhancements (dashboard, suite merge).
 
 ## Entity Relationship Diagram
 
@@ -34,6 +34,8 @@ erDiagram
     annotations ||--o{ attachments : "has"
 
     csv_imports ||--o{ csv_import_errors : "has"
+
+    profiles ||--o{ dashboard_preferences : "has"
 ```
 
 ### Future Extensions (S1–S7)
@@ -507,6 +509,22 @@ Per-user grid layout preferences for customizable columns (N6 AC-1).
 
 ---
 
+### `dashboard_preferences`
+
+Per-user dashboard card layout (post-MVP). Admin-only customization of card visibility and order.
+
+| Column | Type | Constraints | Notes |
+|---|---|---|---|
+| `id` | `uuid` | **PK**, DEFAULT `gen_random_uuid()` | |
+| `user_id` | `uuid` | FK → `profiles(id)` ON DELETE CASCADE, NOT NULL, UNIQUE | One row per user |
+| `card_config` | `jsonb` | NOT NULL, DEFAULT `'[]'::jsonb` | Array of `{ card_id, visible, position }` |
+| `created_at` | `timestamptz` | NOT NULL, DEFAULT `now()` | |
+| `updated_at` | `timestamptz` | NOT NULL, DEFAULT `now()` | |
+
+**RLS:** Users can only read/write their own row.
+
+---
+
 ## Future Tables (Schema Placeholders)
 
 These tables are **not used in MVP** but are included in the schema from day one to avoid migration pain later. They can ship empty.
@@ -667,6 +685,7 @@ All tables have RLS enabled. Policies follow the role hierarchy: **Admin > SDET 
 | `attachments` | All authenticated | Admin, QA Engineer, SDET | — (immutable) | Admin or owner |
 | `invitations` | Admin only | Admin only | Admin only | Admin only |
 | `webhook_events` | Admin, SDET | Service role only | Service role only | Admin only |
+| `dashboard_preferences` | Own row only | Own row only | Own row only | Own row only |
 
 Viewer role: SELECT on all data tables, no write access. Edit controls disabled in the UI and blocked at the RLS layer.
 
@@ -693,6 +712,14 @@ Trigger on `test_cases` UPDATE that captures a JSONB snapshot of the test case a
 ### `update_test_case_display_ids_on_prefix_change()`
 
 Trigger on `suites` AFTER UPDATE OF `prefix`. When a suite's prefix changes, cascades the update to all related `test_cases.display_id` values (e.g., renaming prefix from "SR" to "REG" updates "SR-1" → "REG-1"). Added in migration `00002_cascade_prefix_to_display_ids.sql`.
+
+### `dashboard_summary(p_user_id uuid, p_role text)`
+
+RPC function (`SECURITY DEFINER`) that returns all dashboard data in a single round-trip. Returns a `jsonb` object with three top-level keys: `user_section` (assigned runs, recent activity, personal stats), `global_section` (active projects, run overview, recent runs, pass rate, platform coverage), and `admin_section` (null for non-admins; user activity, pending invitations, system stats, webhook health, import activity). Added in migration `00004_dashboard.sql`.
+
+### `merge_suites(p_source_suite_id uuid, p_target_suite_id uuid)`
+
+RPC function (`SECURITY DEFINER`) that atomically merges two suites. Validates both suites belong to the same project, locks the target suite, reassigns all test cases from source to target with new `display_id` and `sequence_number` values, bumps the target's `next_sequence`, and deletes the source suite. Returns `{ moved_count, target_suite_id, target_prefix }`. Added in migration `00005_merge_suites.sql`.
 
 ---
 

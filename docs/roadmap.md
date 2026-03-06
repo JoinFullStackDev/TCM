@@ -1,8 +1,8 @@
 # Build Roadmap
 
-> Sequenced build plan for TCM MVP (N1–N8). Each phase lists what gets built, which schema tables are involved, and what's deliverable at the end. Later phases depend on earlier ones — don't skip ahead.
+> Sequenced build plan for TestForge (formerly TCM). Each phase lists what gets built, which schema tables are involved, and what's deliverable at the end.
 
-**Current Status:** All MVP phases (0–5) and post-MVP gap remediation are **complete**. The app is fully functional for N1–N8 features.
+**Current Status:** All MVP phases (0–5), post-MVP gap remediation, and post-MVP enhancements are **complete**.
 
 ---
 
@@ -260,6 +260,38 @@ This phase was executed after all 5 MVP phases were complete. It addressed missi
 
 ---
 
+## Post-MVP — Enhancements ✅
+
+**Status: Complete**
+
+**Goal:** Dashboard, suite operations, UX improvements, and branding.
+
+### What was built
+
+| Area | Items |
+|------|-------|
+| **Dashboard** | Modular card-based dashboard as the new home page (`/`). Single Postgres RPC (`dashboard_summary`) for all data in one round-trip. Three sections: User (assigned runs, recent activity, personal stats), Global (active projects, run overview, recent runs, pass rate, platform coverage), Admin (user activity, pending invitations, system stats, webhook health, import activity). Admin-only customization drawer with card visibility toggles and reorder. `dashboard_preferences` table stores layout per user. |
+| **Suite merge** | Admin-only "Merge into..." action on suites. Postgres `merge_suites()` RPC atomically moves all test cases from source to target suite (re-sequencing display IDs), then deletes the source. Accessible from suite three-dot menu. |
+| **Assignee management** | Clickable assignee chip on test run detail pages. Popover lists all active users for reassignment. New lightweight `GET /api/profiles` endpoint for user list. |
+| **Grid suite filter** | Suite filter chip in the grid filter bar. Multi-select popover to show/hide test cases by suite in the project-level grid view. |
+| **Grid test run execution** | Project-level grid now supports test run selection and step-level status editing, matching the suite-level grid capabilities. |
+| **Login page redesign** | Animated login page with FullStack logo, floating orb glows, grid background animation, frosted glass card, staggered entrance animations. FullStack website link in footer. |
+| **Branding** | Renamed from "TCM" to "TestForge". Updated page titles, login page heading/tagline, and metadata. Sidebar logo now links to dashboard. |
+| **Schema** | Migration `00004_dashboard.sql` (dashboard_preferences table + dashboard_summary RPC), migration `00005_merge_suites.sql` (merge_suites RPC) |
+
+### New routes
+
+| Route | Purpose |
+|-------|---------|
+| `/` | Dashboard (was Projects, now at `/projects`) |
+| `/projects` | Projects listing (moved from `/`) |
+| `GET /api/dashboard` | Aggregated dashboard data via RPC |
+| `GET/PATCH /api/dashboard/preferences` | Dashboard card layout preferences |
+| `POST /api/projects/[id]/suites/merge` | Suite merge operation |
+| `GET /api/profiles` | Lightweight active user list |
+
+---
+
 ## Quick Reference: Schema → Phase Map
 
 | Table | Phase | Feature |
@@ -281,6 +313,7 @@ This phase was executed after all 5 MVP phases were complete. It addressed missi
 | `csv_import_errors` | 4 | N1 CSV Import |
 | `webhook_events` | 5 | N8 Playwright Integration |
 | `grid_column_preferences` | 3 | N6 Grid View |
+| `dashboard_preferences` | Post-MVP | Dashboard customization |
 | `integrations` | — | Future (S4/S5) |
 | `comments` | — | Future (S7) |
 | `activity_log` | — | Future (S7) |
