@@ -1,5 +1,22 @@
 import type { SlackConfig } from '@/types/database';
 
+interface StepFailure {
+  displayId: string;
+  stepNumber: number;
+  description: string;
+  platform: string;
+  browser: string;
+}
+
+interface StepCounts {
+  total: number;
+  pass: number;
+  fail: number;
+  blocked: number;
+  skip: number;
+  not_run: number;
+}
+
 interface RunSummary {
   runId: string;
   runName: string;
@@ -14,6 +31,9 @@ interface RunSummary {
   skip: number;
   not_run: number;
   passRate: number;
+  steps: StepCounts;
+  stepPassRate: number;
+  failedSteps: StepFailure[];
 }
 
 function statusEmoji(passRate: number, fails: number): string {
@@ -49,15 +69,60 @@ function buildCompletionBlocks(summary: RunSummary, appUrl: string) {
     },
     {
       type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: `*Cases (${summary.totalCases} total — ${summary.passRate}% pass rate)*`,
+      },
+    },
+    {
+      type: 'section',
       fields: [
-        { type: 'mrkdwn', text: `*Total Cases*\n${summary.totalCases}` },
-        { type: 'mrkdwn', text: `*Pass Rate*\n${summary.passRate}%` },
         { type: 'mrkdwn', text: `:white_check_mark: *Passed*\n${summary.pass}` },
         { type: 'mrkdwn', text: `:x: *Failed*\n${summary.fail}` },
         { type: 'mrkdwn', text: `:no_entry_sign: *Blocked*\n${summary.blocked}` },
         { type: 'mrkdwn', text: `:fast_forward: *Skipped*\n${summary.skip}` },
+        { type: 'mrkdwn', text: `:white_circle: *Not Run*\n${summary.not_run}` },
       ],
     },
+    { type: 'divider' },
+    {
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: `*Steps (${summary.steps.total} total — ${summary.stepPassRate}% pass rate)*`,
+      },
+    },
+    {
+      type: 'section',
+      fields: [
+        { type: 'mrkdwn', text: `:white_check_mark: *Passed*\n${summary.steps.pass}` },
+        { type: 'mrkdwn', text: `:x: *Failed*\n${summary.steps.fail}` },
+        { type: 'mrkdwn', text: `:no_entry_sign: *Blocked*\n${summary.steps.blocked}` },
+        { type: 'mrkdwn', text: `:fast_forward: *Skipped*\n${summary.steps.skip}` },
+        { type: 'mrkdwn', text: `:white_circle: *Not Run*\n${summary.steps.not_run}` },
+      ],
+    },
+  ];
+
+  if (summary.failedSteps.length > 0) {
+    const maxToShow = 10;
+    const lines = summary.failedSteps.slice(0, maxToShow).map(
+      (f) => `• *${f.displayId}* Step ${f.stepNumber} — ${f.platform}${f.browser !== 'default' ? ` / ${f.browser}` : ''}\n   _${truncate(f.description, 80)}_`,
+    );
+    const overflow = summary.failedSteps.length > maxToShow
+      ? `\n_…and ${summary.failedSteps.length - maxToShow} more_`
+      : '';
+
+    blocks.push({
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: `:mag: *Failed Steps*\n${lines.join('\n')}${overflow}`,
+      },
+    });
+  }
+
+  blocks.push(
     {
       type: 'actions',
       elements: [
@@ -78,7 +143,7 @@ function buildCompletionBlocks(summary: RunSummary, appUrl: string) {
         },
       ],
     },
-  ];
+  );
 
   return blocks;
 }
@@ -94,7 +159,7 @@ function buildThresholdAlertBlocks(
     ? mentionUsergroups.map((g) => `<!subteam^${g}>`).join(' ')
     : '<!here>';
 
-  return [
+  const blocks: Record<string, unknown>[] = [
     {
       type: 'header',
       text: {
@@ -107,21 +172,42 @@ function buildThresholdAlertBlocks(
       type: 'section',
       text: {
         type: 'mrkdwn',
-        text: `${mentions}\n\n*<${reportUrl}|${summary.runName}>* in *${summary.projectName}* has *${summary.fail} failures* (threshold: ${threshold}).`,
+        text: `${mentions}\n\n*<${reportUrl}|${summary.runName}>* in *${summary.projectName}* has *${summary.steps.fail} failed steps* across *${summary.fail} failed cases* (threshold: ${threshold}).`,
       },
     },
-    {
-      type: 'actions',
-      elements: [
-        {
-          type: 'button',
-          text: { type: 'plain_text', text: 'View Report', emoji: true },
-          url: reportUrl,
-          style: 'danger',
-        },
-      ],
-    },
   ];
+
+  if (summary.failedSteps.length > 0) {
+    const lines = summary.failedSteps.slice(0, 5).map(
+      (f) => `• *${f.displayId}* Step ${f.stepNumber} — ${f.platform}: _${truncate(f.description, 60)}_`,
+    );
+    blocks.push({
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: lines.join('\n'),
+      },
+    });
+  }
+
+  blocks.push({
+    type: 'actions',
+    elements: [
+      {
+        type: 'button',
+        text: { type: 'plain_text', text: 'View Report', emoji: true },
+        url: reportUrl,
+        style: 'danger',
+      },
+    ],
+  });
+
+  return blocks;
+}
+
+function truncate(str: string, max: number): string {
+  if (str.length <= max) return str;
+  return str.slice(0, max - 1) + '…';
 }
 
 async function postToSlack(webhookUrl: string, blocks: Record<string, unknown>[]) {
