@@ -12,7 +12,9 @@
 
 - Given I am a QA Admin
 - When I invite a team member
-- Then they receive an email with registration link
+- Then they receive a registration link
+
+> **Implementation note:** Email delivery is deferred. Invitations generate a unique token and URL (`/invite/[token]`), but the link must be shared manually by the Admin (e.g. via Slack or email). Automated email sending can be added later via Supabase Edge Functions or a transactional email service.
 
 ### AC-2: Role Assignment
 

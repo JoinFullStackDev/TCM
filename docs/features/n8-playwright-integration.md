@@ -39,13 +39,22 @@
 
 ---
 
-## ⚠ Open Design Decisions
+## Implementation Status
 
-The following details are **intentionally deferred** until CI/CD pipeline integration begins:
+The following capabilities are **built and functional**:
 
-- **Webhook payload schema** — the exact JSON structure sent by Playwright CI is TBD. Design the ingestion endpoint to validate with Zod so the contract can be locked down once the pipeline shape is known.
-- **Test case ID mapping** — how the Playwright report references test case `display_id` values (e.g. `SR-1`) needs to be decided alongside the CI config.
-- **Error handling & retries** — retry policy (exponential back-off, dead-letter, max attempts) will be defined when real failure modes are observable.
-- **Auth mechanism details** — `X-API-Key` header is confirmed; key generation, rotation, and per-project scoping are deferred.
+- **Webhook endpoint** — `POST /api/webhooks/playwright` with `X-API-Key` header auth
+- **Zod validation** — Payload validated via schema in `lib/validations/webhook.ts`; invalid payloads rejected with structured errors
+- **Event logging** — Every incoming request (success or failure) logged to `webhook_events` with status, error message, and timestamp
+- **Auto-run creation** — Webhook results auto-create a `test_run` (`is_automated: true`, `source: 'playwright_webhook'`), `test_run_cases`, and `execution_results`
+- **Webhook processing** — Core logic in `lib/webhooks/process-playwright.ts`
+- **Activity log UI** — Integrations page (`/integrations`) shows webhook event history with status indicators
+- **Automated run tagging** — Runs created via webhook display "Automated" chip in the UI
 
-These gaps are tracked and will be resolved during N8 implementation. Do not block other features on them.
+## Remaining Deferred Decisions
+
+The following details remain **intentionally deferred** until CI/CD pipeline integration is production-hardened:
+
+- **Test case ID mapping** — how the Playwright report references test case `display_id` values (e.g. `SR-1`) needs to be decided alongside the CI config. Current implementation uses display IDs in the payload.
+- **Retry policy** — exponential back-off, dead-letter, max attempts will be defined when real failure modes are observable in production.
+- **API key management** — `X-API-Key` header auth works with a static key (`WEBHOOK_API_KEY` env var). Key generation, rotation, and per-project scoping are deferred.

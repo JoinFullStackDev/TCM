@@ -71,6 +71,19 @@ CREATE TYPE test_case_type AS ENUM (
   'performance'          -- S3: extensible for future types
 );
 
+CREATE TYPE test_case_category AS ENUM (
+  'smoke',
+  'regression',
+  'integration',
+  'e2e',
+  'unit',
+  'acceptance',
+  'exploratory',
+  'performance',
+  'security',
+  'usability'
+);
+
 CREATE TYPE automation_status AS ENUM (
   'not_automated',
   'scripted',            -- script exists, not in pipeline
@@ -197,13 +210,15 @@ Logical grouping of test cases within a project (N4 AC-2). Maps to individual sh
 | `color_index` | `smallint` | NOT NULL, DEFAULT `0` | Cycles through palette: 0=Primary, 1=Success, 2=Info, 3=Warning, 4=Error |
 | `position` | `integer` | NOT NULL, DEFAULT `0` | Display order in sidebar |
 | `next_sequence` | `integer` | NOT NULL, DEFAULT `1` | Next auto-increment number for test case IDs |
+| `tags` | `text[]` | NOT NULL, DEFAULT `'{}'` | Freeform tags for suite-level filtering (e.g. "regression", "smoke") |
+| `group` | `text` | | Optional grouping label for organizing suites in the sidebar |
 | `created_by` | `uuid` | FK → `profiles(id)`, NOT NULL | |
 | `created_at` | `timestamptz` | NOT NULL, DEFAULT `now()` | |
 | `updated_at` | `timestamptz` | NOT NULL, DEFAULT `now()` | |
 
 **Constraints:** `UNIQUE(project_id, prefix)`
 
-**Indexes:** `idx_suites_project` on `project_id`, `idx_suites_position` on `(project_id, position)`
+**Indexes:** `idx_suites_project` on `project_id`, `idx_suites_position` on `(project_id, position)`, `idx_suites_tags` GIN on `tags`, `idx_suites_group` on `group`
 
 **ID generation logic:** When a test case is created, atomically read `next_sequence`, set `display_id = prefix || '-' || next_sequence`, then increment `next_sequence`. Use a Postgres function with row-level locking to prevent race conditions.
 
@@ -230,12 +245,13 @@ Individual test cases within a suite (N2 AC-1). Each maps to a collapsible row g
 | `tags` | `text[]` | NOT NULL, DEFAULT `'{}'` | Freeform tags (smoke, regression, etc.) for S2 filtering |
 | `position` | `integer` | NOT NULL, DEFAULT `0` | Display order within suite |
 | `metadata` | `jsonb` | NOT NULL, DEFAULT `'{}'` | Reserved for S6 custom field values |
+| `category` | `test_case_category` | | Classification (smoke, regression, e2e, etc.) — used for filtering and reporting |
 | `created_by` | `uuid` | FK → `profiles(id)`, NOT NULL | |
 | `updated_by` | `uuid` | FK → `profiles(id)` | Last editor (N2 AC-3) |
 | `created_at` | `timestamptz` | NOT NULL, DEFAULT `now()` | |
 | `updated_at` | `timestamptz` | NOT NULL, DEFAULT `now()` | |
 
-**Indexes:** `idx_test_cases_suite` on `suite_id`, `idx_test_cases_display_id` on `display_id`, `idx_test_cases_automation_status` on `automation_status`, `idx_test_cases_position` on `(suite_id, position)`, `idx_test_cases_tags` GIN on `tags`, `idx_test_cases_metadata` GIN on `metadata`
+**Indexes:** `idx_test_cases_suite` on `suite_id`, `idx_test_cases_display_id` on `display_id`, `idx_test_cases_automation_status` on `automation_status`, `idx_test_cases_position` on `(suite_id, position)`, `idx_test_cases_category` on `category`, `idx_test_cases_tags` GIN on `tags`, `idx_test_cases_metadata` GIN on `metadata`
 
 ---
 
@@ -252,6 +268,7 @@ Individual steps within a test case (N2 AC-1). Each maps to a row within a colla
 | `test_data` | `text` | | Specific data used (emails, URLs, etc.) |
 | `expected_result` | `text` | | What should happen after this step |
 | `is_automation_only` | `boolean` | NOT NULL, DEFAULT `false` | Skipped during manual runs |
+| `category` | `test_case_category` | | Step-level classification — present in DB but not currently exposed in UI |
 | `created_at` | `timestamptz` | NOT NULL, DEFAULT `now()` | |
 | `updated_at` | `timestamptz` | NOT NULL, DEFAULT `now()` | |
 
@@ -673,6 +690,10 @@ Trigger on `auth.users` INSERT that creates a corresponding `profiles` row with 
 
 Trigger on `test_cases` UPDATE that captures a JSONB snapshot of the test case and its steps into `test_case_versions`, incrementing the version number.
 
+### `update_test_case_display_ids_on_prefix_change()`
+
+Trigger on `suites` AFTER UPDATE OF `prefix`. When a suite's prefix changes, cascades the update to all related `test_cases.display_id` values (e.g., renaming prefix from "SR" to "REG" updates "SR-1" → "REG-1"). Added in migration `00002_cascade_prefix_to_display_ids.sql`.
+
 ---
 
 ## Key Design Decisions
@@ -690,3 +711,5 @@ Trigger on `test_cases` UPDATE that captures a JSONB snapshot of the test case a
 | `browser` as text | Open-ended — Chrome, Safari, Firefox, Edge, iPad Air, etc. Not worth enumerating |
 | Future tables created empty | Avoids migration risk later; empty tables have zero storage/performance cost |
 | `annotations` vs `comments` | `annotations` are MVP — tied to specific execution results. `comments` (S7) are polymorphic and broader in scope. Separate tables because they serve different purposes. |
+| `test_case_category` enum vs `tags` array | `category` is a single structured classification (smoke, regression, e2e, etc.) for filtering and reporting. `tags` is a freeform array for ad-hoc labeling. Both exist because they serve complementary purposes — `category` enforces consistency, `tags` offers flexibility. |
+| `test_steps.category` in DB but not in UI | The column exists in the schema for forward compatibility but was removed from the step editor and detail panel UI during MVP to reduce noise. It can be re-exposed when step-level categorization becomes a need. |

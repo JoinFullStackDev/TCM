@@ -2,9 +2,13 @@
 
 > Sequenced build plan for TCM MVP (N1–N8). Each phase lists what gets built, which schema tables are involved, and what's deliverable at the end. Later phases depend on earlier ones — don't skip ahead.
 
+**Current Status:** All MVP phases (0–5) and post-MVP gap remediation are **complete**. The app is fully functional for N1–N8 features.
+
 ---
 
-## Phase 0 — Foundation
+## Phase 0 — Foundation ✅
+
+**Status: Complete**
 
 **Goal:** Runnable app shell with auth, theme, and full database — no features yet, but the skeleton everything mounts into.
 
@@ -40,7 +44,9 @@
 
 ---
 
-## Phase 1 — Core Data Hierarchy (N4 → N2)
+## Phase 1 — Core Data Hierarchy (N4 → N2) ✅
+
+**Status: Complete**
 
 **Goal:** Projects, suites, and full test case CRUD — the backbone of the app.
 
@@ -80,7 +86,9 @@
 
 ---
 
-## Phase 2 — Users & Execution (N7 → N3)
+## Phase 2 — Users & Execution (N7 → N3) ✅
+
+**Status: Complete**
 
 **Goal:** Multi-user support and the full execution tracking workflow.
 
@@ -118,7 +126,9 @@
 
 ---
 
-## Phase 3 — Primary Interface (N6)
+## Phase 3 — Primary Interface (N6) ✅
+
+**Status: Complete**
 
 **Goal:** The MUI X Data Grid that becomes the daily-use screen.
 
@@ -146,7 +156,9 @@
 
 ---
 
-## Phase 4 — Data Migration & Reporting (N1 → N5)
+## Phase 4 — Data Migration & Reporting (N1 → N5) ✅
+
+**Status: Complete**
 
 **Goal:** Import existing Google Sheets data and generate reports from execution data.
 
@@ -184,7 +196,9 @@
 
 ---
 
-## Phase 5 — Integration (N8)
+## Phase 5 — Integration (N8) ✅
+
+**Status: Complete**
 
 **Goal:** Playwright webhook endpoint — structural shell with deferred payload contract.
 
@@ -215,6 +229,34 @@
 - Activity log UI shows event history
 - Automated test runs tagged with "Automated" chip
 - `npm run build` passes with no errors
+
+---
+
+## Post-MVP — Gap Remediation ✅
+
+**Status: Complete**
+
+**Goal:** Address all identified gaps across N1–N8 features and wire up partial S1/S3 forward-compatibility work.
+
+This phase was executed after all 5 MVP phases were complete. It addressed missing wiring, UI polish, and forward-compatibility concerns identified during a full feature audit.
+
+### What was addressed
+
+| Area | Items |
+|------|-------|
+| **N2 completeness** | Wired `StepAutocomplete` into `StepEditor` (AC-5), added `platform_tags` to bulk edit toolbar (AC-4), added `automation_file_path` field to drawer (S1 AC-4), resolved user names in version history (AC-3) |
+| **N3 enhancements** | Added `CombinedStatusDisplay` column to the data grid (AC-6), environment chip selector in create run dialog (AC-1), browser dimension in execution UI (AC-3/AC-4) |
+| **N1 import** | Auto-creates import test run when CSV contains pass/fail data (AC-3), improved column auto-detection fallback (AC-2), wizard UI polish with transitions and toasts |
+| **N4 suite DnD** | API support for moving test cases between suites (AC-6), drag-and-drop UI between suites in project view |
+| **N6 grid filters** | Added execution status filter to `GridFilterBar` (AC-2) |
+| **S-feature wiring** | Performance test criteria placeholder in `test_cases.metadata` (S3 AC-1), verified placeholder table RLS policies |
+| **Schema maintenance** | Added `update_test_case_display_ids_on_prefix_change()` trigger to cascade suite prefix renames to `display_id` values (migration `00002`) |
+| **UI cleanup** | Removed `category` from step editor and step detail panel UI (DB column retained for forward compatibility), narrowed test data column width |
+
+### Deferred (confirmed out of scope for MVP)
+
+- N7 AC-1 email sending — invitations use manual URL copy
+- S2 (automated triggering), S4 (Slack), S5 (GitLab), S6 (custom fields UI), S7 (collaboration) — placeholder schema only
 
 ---
 
@@ -253,6 +295,7 @@
 |------|-------|---------|
 | `user_role` | 0 | `profiles.role`, `invitations.role` |
 | `test_case_type` | 1 | `test_cases.type` |
+| `test_case_category` | 0 | `test_cases.category`, `test_steps.category` |
 | `automation_status` | 1 | `test_cases.automation_status` |
 | `execution_status` | 2 | `execution_results.status`, `test_run_cases.overall_status` |
 | `platform` | 2 | `execution_results.platform`, `test_cases.platform_tags` |
