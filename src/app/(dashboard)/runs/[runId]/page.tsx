@@ -27,6 +27,10 @@ import Popover from '@mui/material/Popover';
 import FormGroup from '@mui/material/FormGroup';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import Checkbox from '@mui/material/Checkbox';
+import List from '@mui/material/List';
+import ListItemButton from '@mui/material/ListItemButton';
+import ListItemAvatar from '@mui/material/ListItemAvatar';
+import ListItemText from '@mui/material/ListItemText';
 import AddIcon from '@mui/icons-material/Add';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
@@ -34,6 +38,8 @@ import CheckIcon from '@mui/icons-material/Check';
 import StopIcon from '@mui/icons-material/Stop';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import DevicesIcon from '@mui/icons-material/Devices';
+import PersonOutlineIcon from '@mui/icons-material/PersonOutline';
+import PersonOffOutlinedIcon from '@mui/icons-material/PersonOffOutlined';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import NextLink from 'next/link';
 import { alpha } from '@mui/material/styles';
@@ -92,6 +98,9 @@ export default function RunDetailPage() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [envAnchor, setEnvAnchor] = useState<HTMLElement | null>(null);
+  const [assigneeAnchor, setAssigneeAnchor] = useState<HTMLElement | null>(null);
+  const [profilesList, setProfilesList] = useState<{ id: string; full_name: string | null; avatar_url: string | null; role: string }[]>([]);
+  const [profilesLoaded, setProfilesLoaded] = useState(false);
   const [projectPlatforms, setProjectPlatforms] = useState<string[]>([]);
 
   const currentPlatforms = run?.environment
@@ -125,6 +134,25 @@ export default function RunDetailPage() {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ environment: newEnv || null }),
+    });
+    fetchRun();
+  };
+
+  const handleAssigneeOpen = async (e: React.MouseEvent<HTMLElement>) => {
+    setAssigneeAnchor(e.currentTarget);
+    if (!profilesLoaded) {
+      const res = await fetch('/api/profiles');
+      if (res.ok) setProfilesList(await res.json());
+      setProfilesLoaded(true);
+    }
+  };
+
+  const handleAssigneeChange = async (userId: string | null) => {
+    setAssigneeAnchor(null);
+    await fetch(`/api/test-runs/${runId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ assignee_id: userId }),
     });
     fetchRun();
   };
@@ -211,13 +239,25 @@ export default function RunDetailPage() {
           ) : (
             run.environment && <Chip label={run.environment} size="small" variant="outlined" />
           )}
-          {run.assignee && (
+          {canWrite ? (
             <Chip
-              avatar={<Avatar src={run.assignee.avatar_url ?? undefined} sx={{ width: 20, height: 20 }}>{run.assignee.full_name[0]}</Avatar>}
-              label={run.assignee.full_name}
+              icon={run.assignee ? undefined : <PersonOutlineIcon sx={{ fontSize: 14 }} />}
+              avatar={run.assignee ? <Avatar src={run.assignee.avatar_url ?? undefined} sx={{ width: 20, height: 20 }}>{run.assignee.full_name[0]}</Avatar> : undefined}
+              label={run.assignee ? run.assignee.full_name : 'Assign'}
               size="small"
               variant="outlined"
+              onClick={handleAssigneeOpen}
+              sx={{ cursor: 'pointer' }}
             />
+          ) : (
+            run.assignee && (
+              <Chip
+                avatar={<Avatar src={run.assignee.avatar_url ?? undefined} sx={{ width: 20, height: 20 }}>{run.assignee.full_name[0]}</Avatar>}
+                label={run.assignee.full_name}
+                size="small"
+                variant="outlined"
+              />
+            )
           )}
         </Box>
 
@@ -404,6 +444,62 @@ export default function RunDetailPage() {
               );
             })}
           </FormGroup>
+        </Popover>
+
+        <Popover
+          open={Boolean(assigneeAnchor)}
+          anchorEl={assigneeAnchor}
+          onClose={() => setAssigneeAnchor(null)}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+          transformOrigin={{ vertical: 'top', horizontal: 'left' }}
+          slotProps={{ paper: { sx: { minWidth: 220, maxHeight: 320 } } }}
+        >
+          <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', display: 'block', px: 2, pt: 1.5, pb: 0.5 }}>
+            Assign to
+          </Typography>
+          <List dense sx={{ py: 0.5 }}>
+            {run.assignee && (
+              <ListItemButton onClick={() => handleAssigneeChange(null)} sx={{ py: 0.75 }}>
+                <ListItemAvatar sx={{ minWidth: 36 }}>
+                  <PersonOffOutlinedIcon sx={{ fontSize: 20, color: 'text.secondary' }} />
+                </ListItemAvatar>
+                <ListItemText
+                  primary="Unassign"
+                  primaryTypographyProps={{ variant: 'body2', color: 'text.secondary' }}
+                />
+              </ListItemButton>
+            )}
+            {profilesList.map((p) => {
+              const isSelected = run.assignee?.id === p.id;
+              return (
+                <ListItemButton
+                  key={p.id}
+                  onClick={() => handleAssigneeChange(p.id)}
+                  selected={isSelected}
+                  sx={{ py: 0.75 }}
+                >
+                  <ListItemAvatar sx={{ minWidth: 36 }}>
+                    <Avatar
+                      src={p.avatar_url ?? undefined}
+                      sx={{ width: 24, height: 24, fontSize: '0.7rem' }}
+                    >
+                      {p.full_name?.[0] ?? '?'}
+                    </Avatar>
+                  </ListItemAvatar>
+                  <ListItemText
+                    primary={p.full_name ?? 'Unknown'}
+                    primaryTypographyProps={{ variant: 'body2', fontWeight: isSelected ? 600 : 400 }}
+                  />
+                  {isSelected && <CheckIcon sx={{ fontSize: 16, color: 'primary.main' }} />}
+                </ListItemButton>
+              );
+            })}
+            {!profilesLoaded && (
+              <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
+                <CircularProgress size={20} />
+              </Box>
+            )}
+          </List>
         </Popover>
 
         <Dialog open={deleteOpen} onClose={() => setDeleteOpen(false)}>

@@ -16,6 +16,7 @@ import Divider from '@mui/material/Divider';
 import Tooltip from '@mui/material/Tooltip';
 import Collapse from '@mui/material/Collapse';
 import { alpha } from '@mui/material/styles';
+import DashboardOutlinedIcon from '@mui/icons-material/DashboardOutlined';
 import FolderOutlinedIcon from '@mui/icons-material/FolderOutlined';
 import PlaylistPlayIcon from '@mui/icons-material/PlaylistPlay';
 import AssessmentOutlinedIcon from '@mui/icons-material/AssessmentOutlined';
@@ -45,7 +46,8 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { label: 'Projects', href: '/', icon: <FolderOutlinedIcon /> },
+  { label: 'Dashboard', href: '/', icon: <DashboardOutlinedIcon /> },
+  { label: 'Projects', href: '/projects', icon: <FolderOutlinedIcon /> },
   { label: 'Test Runs', href: '/runs', icon: <PlaylistPlayIcon /> },
   { label: 'Reports', href: '/reports', icon: <AssessmentOutlinedIcon /> },
   { label: 'Integrations', href: '/integrations', icon: <WebhookOutlinedIcon />, permission: 'view_webhooks' },
@@ -163,36 +165,46 @@ export default function Sidebar({ collapsed }: { collapsed: boolean }) {
         overflow: 'hidden',
       }}
     >
-      <Box
-        sx={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          px: collapsed ? 0.5 : 2,
-          py: 1.5,
-          minHeight: 64,
-          overflow: 'hidden',
-        }}
+      <Link
+        href="/"
+        style={{ textDecoration: 'none' }}
       >
         <Box
           sx={{
-            width: collapsed ? 40 : '100%',
-            overflow: 'hidden',
-            transition: 'width 0.2s ease-out',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
+            px: collapsed ? 0.5 : 2,
+            py: 1.5,
+            minHeight: 64,
+            overflow: 'hidden',
+            cursor: 'pointer',
           }}
         >
-          <FullStackLogo height={28} />
+          <Box
+            sx={{
+              width: collapsed ? 40 : '100%',
+              overflow: 'hidden',
+              transition: 'width 0.2s ease-out',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <FullStackLogo height={28} />
+          </Box>
         </Box>
-      </Box>
+      </Link>
 
       <Divider />
 
       <List sx={{ flex: 1, px: 1, py: 1.5, overflow: 'auto' }}>
         {visibleNavItems.map((item) => {
-          const isActive = item.href === '/' ? pathname === '/' : pathname.startsWith(item.href);
+          const isActive = item.href === '/'
+            ? pathname === '/'
+            : item.href === '/projects'
+              ? pathname.startsWith('/projects')
+              : pathname.startsWith(item.href);
           return (
             <Box key={item.href}>
               <Tooltip title={collapsed ? item.label : ''} placement="right">
@@ -246,7 +258,7 @@ export default function Sidebar({ collapsed }: { collapsed: boolean }) {
                 </ListItemButton>
               </Tooltip>
 
-              {item.href === '/' && !collapsed && (
+              {item.href === '/projects' && !collapsed && (
                 <Collapse in={!!projectId && suites.length > 0}>
                   <List disablePadding sx={{ pl: 1 }}>
                     {groupedSuites.map((group) => {

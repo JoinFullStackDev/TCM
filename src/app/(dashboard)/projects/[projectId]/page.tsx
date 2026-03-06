@@ -420,7 +420,7 @@ export default function ProjectDetailPage() {
         <Breadcrumbs sx={{ mb: 2 }}>
           <Link
             component={NextLink}
-            href="/"
+            href="/projects"
             underline="hover"
             color="text.secondary"
             fontSize="0.875rem"

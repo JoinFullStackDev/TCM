@@ -252,3 +252,160 @@ export interface Integration {
   created_at: string;
   updated_at: string;
 }
+
+export interface DashboardPreferences {
+  id: string;
+  user_id: string;
+  card_config: DashboardCardConfig[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DashboardCardConfig {
+  card_id: string;
+  visible: boolean;
+  position: number;
+}
+
+export interface DashboardMyAssignedRun {
+  id: string;
+  name: string;
+  status: string;
+  created_at: string;
+  project_name: string;
+  total_cases: number;
+  executed_cases: number;
+}
+
+export interface DashboardRecentActivity {
+  id: string;
+  status: string;
+  platform: string;
+  executed_at: string | null;
+  display_id: string;
+  test_case_title: string;
+  run_name: string;
+  test_run_id: string;
+}
+
+export interface DashboardMyStats {
+  executions_this_week: number;
+  executions_this_month: number;
+  pass_rate_30d: number;
+  total_executed_30d: number;
+}
+
+export interface DashboardActiveProject {
+  id: string;
+  name: string;
+  description: string | null;
+  created_at: string;
+  suite_count: number;
+  test_case_count: number;
+}
+
+export interface DashboardRunOverview {
+  planned: number;
+  in_progress: number;
+  completed: number;
+  aborted: number;
+}
+
+export interface DashboardRecentRun {
+  id: string;
+  name: string;
+  status: string;
+  created_at: string;
+  project_name: string;
+}
+
+export interface DashboardPassRateSummary {
+  pass_rate: number;
+  total_cases: number;
+  passed: number;
+  failed: number;
+  completed_runs: number;
+}
+
+export interface DashboardPlatformCoverage {
+  platform: string;
+  total: number;
+  pass: number;
+  fail: number;
+  pass_rate: number;
+}
+
+export interface DashboardUserActivity {
+  id: string;
+  email: string;
+  full_name: string | null;
+  avatar_url: string | null;
+  role: string;
+  is_active: boolean;
+  last_active_at: string | null;
+}
+
+export interface DashboardPendingInvitation {
+  id: string;
+  email: string;
+  role: string;
+  expires_at: string;
+  created_at: string;
+}
+
+export interface DashboardSystemStats {
+  users: number;
+  projects: number;
+  suites: number;
+  test_cases: number;
+  test_runs: number;
+  executions: number;
+}
+
+export interface DashboardWebhookHealth {
+  success: number;
+  failed: number;
+  pending: number;
+  processing: number;
+  total: number;
+}
+
+export interface DashboardImportActivity {
+  id: string;
+  file_name: string;
+  status: string;
+  imported_count: number;
+  skipped_count: number;
+  error_count: number;
+  total_rows: number | null;
+  created_at: string;
+  project_name: string;
+}
+
+export interface DashboardUserSection {
+  my_assigned_runs: DashboardMyAssignedRun[];
+  my_recent_activity: DashboardRecentActivity[];
+  my_stats: DashboardMyStats;
+}
+
+export interface DashboardGlobalSection {
+  active_projects: DashboardActiveProject[];
+  run_overview: DashboardRunOverview;
+  recent_runs: DashboardRecentRun[];
+  pass_rate_summary: DashboardPassRateSummary;
+  platform_coverage: DashboardPlatformCoverage[];
+}
+
+export interface DashboardAdminSection {
+  user_activity: DashboardUserActivity[];
+  pending_invitations: DashboardPendingInvitation[];
+  system_stats: DashboardSystemStats;
+  webhook_health: DashboardWebhookHealth;
+  import_activity: DashboardImportActivity[];
+}
+
+export interface DashboardSummary {
+  user_section: DashboardUserSection;
+  global_section: DashboardGlobalSection;
+  admin_section: DashboardAdminSection | null;
+}

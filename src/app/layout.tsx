@@ -2,8 +2,8 @@ import type { Metadata } from 'next';
 import ThemeRegistry from '@/components/providers/ThemeRegistry';
 
 export const metadata: Metadata = {
-  title: 'TCM — Test Case Management',
-  description: 'Internal test case management tool',
+  title: 'TestForge — by FullStack',
+  description: 'QA operations platform — build, track, and ship quality.',
 };
 
 export default function RootLayout({
