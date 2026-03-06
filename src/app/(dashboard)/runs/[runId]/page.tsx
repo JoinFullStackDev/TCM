@@ -199,6 +199,11 @@ export default function RunDetailPage() {
                 </Button>
               </>
             )}
+            {(run.status === 'completed' || run.status === 'aborted') && (
+              <Button size="small" variant="outlined" startIcon={<PlayArrowIcon />} onClick={() => handleStatusChange('in_progress')}>
+                Re-open Run
+              </Button>
+            )}
           </Box>
         )}
 

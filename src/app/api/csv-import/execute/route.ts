@@ -293,15 +293,21 @@ async function createImportTestRun(
 
   if (!importRun) return null;
 
+  const statusPriority: Record<string, number> = { fail: 4, blocked: 3, skip: 2, not_run: 1, pass: 0 };
+
   for (const tc of testCases) {
     const caseInfo = existingCaseMap.get(tc.display_id);
     if (!caseInfo) continue;
 
-    await supabase.from('test_run_cases').insert({
+    const { data: trc } = await supabase.from('test_run_cases').insert({
       test_run_id: importRun.id,
       test_case_id: caseInfo.id,
       overall_status: 'not_run',
-    });
+    }).select('id').single();
+
+    if (!trc) continue;
+
+    const allStatuses: string[] = [];
 
     for (const step of tc.steps) {
       if (!step.platform_results || step.platform_results.length === 0) continue;
@@ -328,6 +334,17 @@ async function createImportTestRun(
       }));
 
       await supabase.from('execution_results').insert(resultRows);
+      allStatuses.push(...resultRows.map((r) => r.status));
+    }
+
+    if (allStatuses.length > 0) {
+      let worst = 'pass';
+      let worstP = 0;
+      for (const s of allStatuses) {
+        const p = statusPriority[s] ?? 0;
+        if (p > worstP) { worst = s; worstP = p; }
+      }
+      await supabase.from('test_run_cases').update({ overall_status: worst }).eq('id', trc.id);
     }
   }
 

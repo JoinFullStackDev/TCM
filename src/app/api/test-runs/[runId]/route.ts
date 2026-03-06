@@ -56,9 +56,11 @@ export async function PATCH(request: Request, context: RouteContext) {
 
   if (parsed.data.status === 'completed' || parsed.data.status === 'aborted') {
     const origin = request.headers.get('origin') ?? process.env.NEXT_PUBLIC_APP_URL ?? '';
-    dispatchSlackNotifications(runId, origin).catch((err) =>
-      console.error('[Slack dispatch] Error:', err),
-    );
+    try {
+      await dispatchSlackNotifications(runId, origin);
+    } catch (err) {
+      console.error('[Slack dispatch] Error:', err);
+    }
   }
 
   return NextResponse.json(run);
