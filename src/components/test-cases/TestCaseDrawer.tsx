@@ -148,7 +148,6 @@ export default function TestCaseDrawer({
           test_data: s.test_data,
           expected_result: s.expected_result,
           is_automation_only: s.is_automation_only,
-          category: s.category ?? null,
         })),
       );
       setVersions(tc.test_case_versions ?? []);

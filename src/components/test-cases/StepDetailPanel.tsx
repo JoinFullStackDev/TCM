@@ -15,7 +15,6 @@ import IconButton from '@mui/material/IconButton';
 import Button from '@mui/material/Button';
 import TextField from '@mui/material/TextField';
 import Switch from '@mui/material/Switch';
-import Select from '@mui/material/Select';
 import Tooltip from '@mui/material/Tooltip';
 import CircularProgress from '@mui/material/CircularProgress';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
@@ -42,7 +41,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { palette, semanticColors } from '@/theme/palette';
 import StatusBadge from '@/components/execution/StatusBadge';
-import type { ExecutionStatus, Platform, TestCaseCategory } from '@/types/database';
+import type { ExecutionStatus, Platform } from '@/types/database';
 import type { StepData } from './StepEditor';
 
 export interface StepWithStatus {
@@ -52,7 +51,6 @@ export interface StepWithStatus {
   test_data: string | null;
   expected_result: string | null;
   is_automation_only: boolean;
-  category?: TestCaseCategory | null;
   step_status?: Record<string, string>;
 }
 
@@ -68,19 +66,6 @@ interface StepDetailPanelProps {
 
 const STATUS_OPTIONS: ExecutionStatus[] = ['pass', 'fail', 'blocked', 'skip', 'not_run'];
 
-const CATEGORY_OPTIONS: { value: TestCaseCategory; label: string }[] = [
-  { value: 'smoke', label: 'Smoke' },
-  { value: 'regression', label: 'Regression' },
-  { value: 'integration', label: 'Integration' },
-  { value: 'e2e', label: 'E2E' },
-  { value: 'unit', label: 'Unit' },
-  { value: 'acceptance', label: 'Acceptance' },
-  { value: 'exploratory', label: 'Exploratory' },
-  { value: 'performance', label: 'Performance' },
-  { value: 'security', label: 'Security' },
-  { value: 'usability', label: 'Usability' },
-];
-
 type EditingField = {
   index: number;
   field: 'description' | 'test_data' | 'expected_result';
@@ -94,7 +79,6 @@ function toStepData(steps: StepWithStatus[]): StepData[] {
     test_data: s.test_data,
     expected_result: s.expected_result,
     is_automation_only: s.is_automation_only,
-    category: s.category ?? null,
   }));
 }
 
@@ -107,7 +91,6 @@ interface SortableStepRowProps {
   editingField: EditingField | null;
   onStartEdit: (index: number, field: EditingField['field']) => void;
   onFieldChange: (index: number, field: string, value: string | boolean) => void;
-  onCategoryChange: (index: number, value: string) => void;
   onCommitEdit: () => void;
   onDelete: (index: number) => void;
   onStatusClick: (e: React.MouseEvent<HTMLElement>, stepId: string, platform: Platform) => void;
@@ -122,7 +105,6 @@ function SortableStepRow({
   editingField,
   onStartEdit,
   onFieldChange,
-  onCategoryChange,
   onCommitEdit,
   onDelete,
   onStatusClick,
@@ -239,38 +221,12 @@ function SortableStepRow({
         {renderTextCell('description', step.description, isEditingDesc, 120)}
       </TableCell>
 
-      <TableCell sx={{ width: 140 }}>
+      <TableCell sx={{ width: 100 }}>
         {renderTextCell('test_data', step.test_data, isEditingData, 60)}
       </TableCell>
 
       <TableCell sx={{ width: 180 }}>
         {renderTextCell('expected_result', step.expected_result, isEditingExpected, 80)}
-      </TableCell>
-
-      <TableCell sx={{ width: 100 }}>
-        {canWrite ? (
-          <Select
-            value={step.category ?? ''}
-            onChange={(e) => onCategoryChange(index, e.target.value)}
-            size="small"
-            variant="standard"
-            displayEmpty
-            sx={{ fontSize: '0.65rem', minWidth: 70, '& .MuiSelect-select': { py: 0.25 } }}
-          >
-            <MenuItem value="" sx={{ fontSize: '0.7rem' }}>None</MenuItem>
-            {CATEGORY_OPTIONS.map((o) => (
-              <MenuItem key={o.value} value={o.value} sx={{ fontSize: '0.7rem' }}>{o.label}</MenuItem>
-            ))}
-          </Select>
-        ) : step.category ? (
-          <Chip
-            label={step.category.charAt(0).toUpperCase() + step.category.slice(1)}
-            size="small"
-            sx={{ height: 18, fontSize: '0.55rem', fontWeight: 600 }}
-          />
-        ) : (
-          <Typography variant="caption" sx={{ color: 'text.disabled' }}>—</Typography>
-        )}
       </TableCell>
 
       {canWrite && (
@@ -403,17 +359,6 @@ export default function StepDetailPanel({
     [updateSteps],
   );
 
-  const handleCategoryChange = useCallback(
-    (index: number, value: string) => {
-      updateSteps((prev) => {
-        const copy = [...prev];
-        copy[index] = { ...copy[index], category: (value || null) as TestCaseCategory | null };
-        return copy;
-      });
-    },
-    [updateSteps],
-  );
-
   const handleStartEdit = useCallback((index: number, field: EditingField['field']) => {
     setEditingField({ index, field });
   }, []);
@@ -441,7 +386,6 @@ export default function StepDetailPanel({
         test_data: null,
         expected_result: null,
         is_automation_only: false,
-        category: null,
       },
     ]);
   }, [updateSteps]);
@@ -525,9 +469,8 @@ export default function StepDetailPanel({
             <TableRow>
               <TableCell sx={{ fontWeight: 600, fontSize: '0.7rem', color: 'text.secondary', width: 60 }}>#</TableCell>
               <TableCell sx={{ fontWeight: 600, fontSize: '0.7rem', color: 'text.secondary', width: 280 }}>Test Step Description</TableCell>
-              <TableCell sx={{ fontWeight: 600, fontSize: '0.7rem', color: 'text.secondary', width: 140 }}>Test Data</TableCell>
+              <TableCell sx={{ fontWeight: 600, fontSize: '0.7rem', color: 'text.secondary', width: 100 }}>Test Data</TableCell>
               <TableCell sx={{ fontWeight: 600, fontSize: '0.7rem', color: 'text.secondary', width: 180 }}>Expected Result</TableCell>
-              <TableCell sx={{ fontWeight: 600, fontSize: '0.7rem', color: 'text.secondary', width: 100 }}>Category</TableCell>
               {canWrite && (
                 <TableCell sx={{ fontWeight: 600, fontSize: '0.7rem', color: 'text.secondary', width: 40 }}>Auto</TableCell>
               )}
@@ -556,7 +499,6 @@ export default function StepDetailPanel({
                   editingField={editingField}
                   onStartEdit={handleStartEdit}
                   onFieldChange={handleFieldChange}
-                  onCategoryChange={handleCategoryChange}
                   onCommitEdit={handleCommitEdit}
                   onDelete={handleDelete}
                   onStatusClick={handleStatusClick}

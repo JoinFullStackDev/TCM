@@ -74,7 +74,7 @@ export default function Sidebar() {
   });
 
   const [suites, setSuites] = useState<Suite[]>([]);
-  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const projectId = extractProjectId(pathname);
   const activeSuiteId = extractSuiteId(pathname);
 
@@ -105,13 +105,26 @@ export default function Sidebar() {
   }, [suites]);
 
   const toggleGroup = useCallback((groupName: string) => {
-    setCollapsedGroups((prev) => {
+    setExpandedGroups((prev) => {
       const next = new Set(prev);
       if (next.has(groupName)) next.delete(groupName);
       else next.add(groupName);
       return next;
     });
   }, []);
+
+  useEffect(() => {
+    if (!activeSuiteId) return;
+    for (const group of groupedSuites) {
+      if (group.name && group.suites.some((s) => s.id === activeSuiteId)) {
+        setExpandedGroups((prev) => {
+          if (prev.has(group.name)) return prev;
+          return new Set(prev).add(group.name);
+        });
+        break;
+      }
+    }
+  }, [activeSuiteId, groupedSuites]);
 
   const fetchSuites = useCallback(async () => {
     if (!projectId) {
@@ -248,7 +261,7 @@ export default function Sidebar() {
                   <List disablePadding sx={{ pl: 1 }}>
                     {groupedSuites.map((group) => {
                       const groupKey = group.name || '__ungrouped__';
-                      const isGroupCollapsed = collapsedGroups.has(groupKey);
+                      const isGroupExpanded = expandedGroups.has(groupKey);
                       const hasGroupHeader = !!group.name;
 
                       return (
@@ -264,10 +277,10 @@ export default function Sidebar() {
                                 borderRadius: '4px',
                               }}
                             >
-                              {isGroupCollapsed ? (
-                                <ExpandMoreIcon sx={{ fontSize: 14, color: 'text.secondary', mr: 0.5 }} />
-                              ) : (
+                              {isGroupExpanded ? (
                                 <ExpandLessIcon sx={{ fontSize: 14, color: 'text.secondary', mr: 0.5 }} />
+                              ) : (
+                                <ExpandMoreIcon sx={{ fontSize: 14, color: 'text.secondary', mr: 0.5 }} />
                               )}
                               <ListItemText
                                 primary={group.name}
@@ -284,7 +297,7 @@ export default function Sidebar() {
                               </Typography>
                             </ListItemButton>
                           )}
-                          <Collapse in={!isGroupCollapsed}>
+                          <Collapse in={isGroupExpanded || !hasGroupHeader}>
                             <List disablePadding sx={{ pl: hasGroupHeader ? 1 : 0 }}>
                               {group.suites.map((suite) => {
                                 const suiteColor = semanticColors.suiteColors[suite.color_index % 5];

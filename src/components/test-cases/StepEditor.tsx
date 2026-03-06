@@ -9,10 +9,6 @@ import Typography from '@mui/material/Typography';
 import Chip from '@mui/material/Chip';
 import Switch from '@mui/material/Switch';
 import FormControlLabel from '@mui/material/FormControlLabel';
-import Select from '@mui/material/Select';
-import MenuItem from '@mui/material/MenuItem';
-import FormControl from '@mui/material/FormControl';
-import InputLabel from '@mui/material/InputLabel';
 import Tooltip from '@mui/material/Tooltip';
 import { alpha } from '@mui/material/styles';
 import AddIcon from '@mui/icons-material/Add';
@@ -36,20 +32,6 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { palette } from '@/theme/palette';
 import StepAutocomplete from './StepAutocomplete';
-import type { TestCaseCategory } from '@/types/database';
-
-const CATEGORY_OPTIONS: { value: TestCaseCategory; label: string }[] = [
-  { value: 'smoke', label: 'Smoke' },
-  { value: 'regression', label: 'Regression' },
-  { value: 'integration', label: 'Integration' },
-  { value: 'e2e', label: 'E2E' },
-  { value: 'unit', label: 'Unit' },
-  { value: 'acceptance', label: 'Acceptance' },
-  { value: 'exploratory', label: 'Exploratory' },
-  { value: 'performance', label: 'Performance' },
-  { value: 'security', label: 'Security' },
-  { value: 'usability', label: 'Usability' },
-];
 
 export interface StepData {
   id?: string;
@@ -58,7 +40,6 @@ export interface StepData {
   test_data: string | null;
   expected_result: string | null;
   is_automation_only: boolean;
-  category?: TestCaseCategory | null;
 }
 
 interface StepEditorProps {
@@ -201,20 +182,6 @@ function StepRow({
           size="small"
           disabled={readOnly}
         />
-        <FormControl size="small" sx={{ minWidth: 120 }}>
-          <InputLabel>Category</InputLabel>
-          <Select
-            value={step.category ?? ''}
-            onChange={(e) => onChange(index, 'category', e.target.value || '')}
-            label="Category"
-            disabled={readOnly}
-          >
-            <MenuItem value="">None</MenuItem>
-            {CATEGORY_OPTIONS.map((o) => (
-              <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>
-            ))}
-          </Select>
-        </FormControl>
       </Box>
     </Box>
   );
@@ -254,7 +221,6 @@ export default function StepEditor({ steps, onChange, readOnly, projectId }: Ste
         test_data: null,
         expected_result: null,
         is_automation_only: false,
-        category: null,
       },
     ]);
   };
