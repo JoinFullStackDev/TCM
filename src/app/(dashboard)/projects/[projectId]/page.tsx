@@ -131,7 +131,7 @@ export default function ProjectDetailPage() {
   const fetchGridTestCases = useCallback(async () => {
     setGridLoading(true);
     try {
-      const res = await fetch(`/api/projects/${projectId}/test-cases?include_status=true`);
+      const res = await fetch(`/api/projects/${projectId}/test-cases?include_status=true&include_steps=true`);
       if (res.ok) {
         const data = await res.json();
         setGridTestCases(Array.isArray(data) ? data : []);

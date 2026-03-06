@@ -1,6 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
+import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Typography from '@mui/material/Typography';
@@ -9,8 +11,11 @@ import { alpha } from '@mui/material/styles';
 import { createClient } from '@/lib/supabase/client';
 import { palette } from '@/theme/palette';
 
-export default function LoginPage() {
+function LoginForm() {
+  const searchParams = useSearchParams();
   const [loading, setLoading] = useState(false);
+
+  const error = searchParams.get('error');
 
   const handleGoogleSignIn = async () => {
     setLoading(true);
@@ -73,6 +78,12 @@ export default function LoginPage() {
           </Typography>
         </Box>
 
+        {error === 'auth' && (
+          <Alert severity="warning" sx={{ width: '100%' }}>
+            Session expired. Please sign in again.
+          </Alert>
+        )}
+
         <Button
           fullWidth
           variant="contained"
@@ -124,5 +135,13 @@ export default function LoginPage() {
         </Typography>
       </Box>
     </Box>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginForm />
+    </Suspense>
   );
 }
