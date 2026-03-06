@@ -235,7 +235,7 @@ function SortableStepRow({
         </Box>
       </TableCell>
 
-      <TableCell>
+      <TableCell sx={{ width: 280, wordBreak: 'break-word', whiteSpace: 'normal' }}>
         {renderTextCell('description', step.description, isEditingDesc, 120)}
       </TableCell>
 
@@ -524,7 +524,7 @@ export default function StepDetailPanel({
           <TableHead>
             <TableRow>
               <TableCell sx={{ fontWeight: 600, fontSize: '0.7rem', color: 'text.secondary', width: 60 }}>#</TableCell>
-              <TableCell sx={{ fontWeight: 600, fontSize: '0.7rem', color: 'text.secondary' }}>Description</TableCell>
+              <TableCell sx={{ fontWeight: 600, fontSize: '0.7rem', color: 'text.secondary', width: 280 }}>Test Step Description</TableCell>
               <TableCell sx={{ fontWeight: 600, fontSize: '0.7rem', color: 'text.secondary', width: 140 }}>Test Data</TableCell>
               <TableCell sx={{ fontWeight: 600, fontSize: '0.7rem', color: 'text.secondary', width: 180 }}>Expected Result</TableCell>
               <TableCell sx={{ fontWeight: 600, fontSize: '0.7rem', color: 'text.secondary', width: 100 }}>Category</TableCell>
