@@ -105,8 +105,8 @@ export default function EditSuiteDialog({
           slotProps={{ htmlInput: { maxLength: 10, style: { textTransform: 'uppercase' } } }}
         />
         {prefixChanged && (
-          <Alert severity="warning" variant="outlined">
-            Changing the prefix will not update existing test case IDs. New test cases will use the new prefix.
+          <Alert severity="info" variant="outlined">
+            Changing the prefix will update all existing test case IDs in this suite.
           </Alert>
         )}
         <Autocomplete
