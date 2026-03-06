@@ -18,11 +18,22 @@ import TableRow from '@mui/material/TableRow';
 import Avatar from '@mui/material/Avatar';
 import CircularProgress from '@mui/material/CircularProgress';
 import Divider from '@mui/material/Divider';
+import Dialog from '@mui/material/Dialog';
+import DialogTitle from '@mui/material/DialogTitle';
+import DialogContent from '@mui/material/DialogContent';
+import DialogContentText from '@mui/material/DialogContentText';
+import DialogActions from '@mui/material/DialogActions';
+import Popover from '@mui/material/Popover';
+import FormGroup from '@mui/material/FormGroup';
+import FormControlLabel from '@mui/material/FormControlLabel';
+import Checkbox from '@mui/material/Checkbox';
 import AddIcon from '@mui/icons-material/Add';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import CheckIcon from '@mui/icons-material/Check';
 import StopIcon from '@mui/icons-material/Stop';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import DevicesIcon from '@mui/icons-material/Devices';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import NextLink from 'next/link';
 import { alpha } from '@mui/material/styles';
@@ -77,6 +88,53 @@ export default function RunDetailPage() {
   const [selectorOpen, setSelectorOpen] = useState(false);
 
   const canWrite = can('write');
+  const canDelete = can('delete');
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [envAnchor, setEnvAnchor] = useState<HTMLElement | null>(null);
+  const [projectPlatforms, setProjectPlatforms] = useState<string[]>([]);
+
+  const currentPlatforms = run?.environment
+    ? run.environment.split(',').map((s) => s.trim()).filter(Boolean)
+    : [];
+
+  const allPlatforms = [...new Set([...projectPlatforms, ...currentPlatforms, 'Desktop', 'Tablet', 'Mobile'])];
+
+  useEffect(() => {
+    if (run?.project_id) {
+      fetch(`/api/projects/${run.project_id}/test-cases`)
+        .then((r) => r.ok ? r.json() : [])
+        .then((cases: { platform_tags?: string[] }[]) => {
+          const platforms = new Set<string>();
+          for (const tc of cases) {
+            for (const p of tc.platform_tags ?? []) {
+              platforms.add(p.charAt(0).toUpperCase() + p.slice(1));
+            }
+          }
+          setProjectPlatforms([...platforms]);
+        });
+    }
+  }, [run?.project_id]);
+
+  const handlePlatformToggle = async (platform: string) => {
+    const updated = currentPlatforms.includes(platform)
+      ? currentPlatforms.filter((p) => p !== platform)
+      : [...currentPlatforms, platform];
+    const newEnv = updated.join(', ');
+    await fetch(`/api/test-runs/${runId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ environment: newEnv || null }),
+    });
+    fetchRun();
+  };
+
+  const handleDelete = async () => {
+    setDeleteLoading(true);
+    const res = await fetch(`/api/test-runs/${runId}`, { method: 'DELETE' });
+    setDeleteLoading(false);
+    if (res.ok) router.push('/runs');
+  };
 
   const fetchRun = useCallback(async () => {
     const res = await fetch(`/api/test-runs/${runId}`);
@@ -141,7 +199,18 @@ export default function RunDetailPage() {
           {run.projects && <Chip label={run.projects.name} size="small" variant="outlined" />}
           {run.suites && <Chip label={`${run.suites.prefix} - ${run.suites.name}`} size="small" variant="outlined" />}
           {run.target_version && <Chip label={`v${run.target_version}`} size="small" variant="outlined" />}
-          {run.environment && <Chip label={run.environment} size="small" variant="outlined" />}
+          {canWrite ? (
+            <Chip
+              icon={<DevicesIcon sx={{ fontSize: 14 }} />}
+              label={run.environment || 'Add Platforms'}
+              size="small"
+              variant="outlined"
+              onClick={(e) => setEnvAnchor(e.currentTarget)}
+              sx={{ cursor: 'pointer' }}
+            />
+          ) : (
+            run.environment && <Chip label={run.environment} size="small" variant="outlined" />
+          )}
           {run.assignee && (
             <Chip
               avatar={<Avatar src={run.assignee.avatar_url ?? undefined} sx={{ width: 20, height: 20 }}>{run.assignee.full_name[0]}</Avatar>}
@@ -203,6 +272,14 @@ export default function RunDetailPage() {
               <Button size="small" variant="outlined" startIcon={<PlayArrowIcon />} onClick={() => handleStatusChange('in_progress')}>
                 Re-open Run
               </Button>
+            )}
+            {canDelete && (
+              <>
+                <Box sx={{ flex: 1 }} />
+                <Button size="small" variant="outlined" color="error" startIcon={<DeleteOutlineIcon />} onClick={() => setDeleteOpen(true)}>
+                  Delete Run
+                </Button>
+              </>
             )}
           </Box>
         )}
@@ -287,6 +364,62 @@ export default function RunDetailPage() {
           onClose={() => setSelectorOpen(false)}
           onAdded={handleCasesAdded}
         />
+
+        <Popover
+          open={Boolean(envAnchor)}
+          anchorEl={envAnchor}
+          onClose={() => setEnvAnchor(null)}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+          transformOrigin={{ vertical: 'top', horizontal: 'left' }}
+          slotProps={{ paper: { sx: { p: 1.5, minWidth: 160 } } }}
+        >
+          <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', display: 'block', mb: 0.5, px: 0.5 }}>
+            Platforms
+          </Typography>
+          <FormGroup>
+            {allPlatforms.map((platform) => {
+              const usedInProject = projectPlatforms.includes(platform);
+              return (
+                <FormControlLabel
+                  key={platform}
+                  control={
+                    <Checkbox
+                      size="small"
+                      checked={currentPlatforms.includes(platform)}
+                      onChange={() => handlePlatformToggle(platform)}
+                    />
+                  }
+                  label={
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                      <Typography variant="body2">{platform}</Typography>
+                      {usedInProject && (
+                        <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.6rem' }}>
+                          (in project)
+                        </Typography>
+                      )}
+                    </Box>
+                  }
+                  sx={{ mx: 0 }}
+                />
+              );
+            })}
+          </FormGroup>
+        </Popover>
+
+        <Dialog open={deleteOpen} onClose={() => setDeleteOpen(false)}>
+          <DialogTitle>Delete Test Run</DialogTitle>
+          <DialogContent>
+            <DialogContentText>
+              Are you sure you want to delete <strong>{run.name}</strong>? This will permanently remove the run and all its execution results. This cannot be undone.
+            </DialogContentText>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setDeleteOpen(false)} disabled={deleteLoading}>Cancel</Button>
+            <Button onClick={handleDelete} color="error" variant="contained" disabled={deleteLoading}>
+              {deleteLoading ? 'Deleting...' : 'Delete'}
+            </Button>
+          </DialogActions>
+        </Dialog>
       </Box>
     </PageTransition>
   );

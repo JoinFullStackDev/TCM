@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useState, useCallback } from 'react';
 import Box from '@mui/material/Box';
 import Chip from '@mui/material/Chip';
 import Popover from '@mui/material/Popover';
@@ -17,7 +17,8 @@ const PLATFORMS: { value: Platform; label: string }[] = [
 
 export default function PlatformTagsEditCell(params: GridRenderEditCellParams) {
   const apiRef = useGridApiContext();
-  const cellRef = useRef<HTMLDivElement>(null);
+  const [anchorEl, setAnchorEl] = useState<HTMLDivElement | null>(null);
+  const anchorRef = useCallback((node: HTMLDivElement | null) => { setAnchorEl(node); }, []);
   const [selected, setSelected] = useState<Platform[]>(
     (params.value as Platform[]) ?? [],
   );
@@ -39,10 +40,10 @@ export default function PlatformTagsEditCell(params: GridRenderEditCellParams) {
   };
 
   return (
-    <Box ref={cellRef} sx={{ width: '100%', height: '100%' }}>
+    <Box ref={anchorRef} sx={{ width: '100%', height: '100%' }}>
       <Popover
-        open
-        anchorEl={cellRef.current}
+        open={Boolean(anchorEl)}
+        anchorEl={anchorEl}
         onClose={handleClose}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
         transformOrigin={{ vertical: 'top', horizontal: 'left' }}

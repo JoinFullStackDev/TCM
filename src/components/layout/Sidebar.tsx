@@ -21,8 +21,7 @@ import PlaylistPlayIcon from '@mui/icons-material/PlaylistPlay';
 import AssessmentOutlinedIcon from '@mui/icons-material/AssessmentOutlined';
 import PeopleOutlineIcon from '@mui/icons-material/PeopleOutline';
 import WebhookOutlinedIcon from '@mui/icons-material/WebhookOutlined';
-import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
-import ChevronRightIcon from '@mui/icons-material/ChevronRight';
+// collapse toggle moved to TopBar
 import FiberManualRecordIcon from '@mui/icons-material/FiberManualRecord';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
@@ -30,6 +29,7 @@ import { motion } from 'framer-motion';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { ROLE_LABELS } from '@/lib/auth/rbac';
 import { palette, semanticColors } from '@/theme/palette';
+import FullStackLogo from './FullStackLogo';
 import type { Suite } from '@/types/database';
 
 const SIDEBAR_WIDTH = 240;
@@ -62,8 +62,7 @@ function extractSuiteId(pathname: string): string | null {
   return match ? match[1] : null;
 }
 
-export default function Sidebar() {
-  const [collapsed, setCollapsed] = useState(false);
+export default function Sidebar({ collapsed }: { collapsed: boolean }) {
   const pathname = usePathname();
   const { profile, role, can } = useAuth();
 
@@ -168,34 +167,25 @@ export default function Sidebar() {
         sx={{
           display: 'flex',
           alignItems: 'center',
-          gap: 1.5,
-          px: collapsed ? 1.25 : 2,
-          py: 2,
+          justifyContent: 'center',
+          px: collapsed ? 0.5 : 2,
+          py: 1.5,
           minHeight: 64,
-          justifyContent: collapsed ? 'center' : 'flex-start',
+          overflow: 'hidden',
         }}
       >
         <Box
           sx={{
-            width: 32,
-            height: 32,
-            borderRadius: '8px',
-            background: `linear-gradient(135deg, ${palette.primary.main}, ${palette.info.main})`,
+            width: collapsed ? 40 : '100%',
+            overflow: 'hidden',
+            transition: 'width 0.2s ease-out',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            flexShrink: 0,
           }}
         >
-          <Typography variant="body2" sx={{ color: '#fff', fontWeight: 800, fontSize: '0.8rem' }}>
-            T
-          </Typography>
+          <FullStackLogo height={28} />
         </Box>
-        {!collapsed && (
-          <Typography variant="h6" sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>
-            TCM
-          </Typography>
-        )}
       </Box>
 
       <Divider />
@@ -430,15 +420,6 @@ export default function Sidebar() {
         )}
       </Box>
 
-      <Box sx={{ display: 'flex', justifyContent: 'center', pb: 1 }}>
-        <IconButton
-          size="small"
-          onClick={() => setCollapsed(!collapsed)}
-          sx={{ color: 'text.secondary' }}
-        >
-          {collapsed ? <ChevronRightIcon fontSize="small" /> : <ChevronLeftIcon fontSize="small" />}
-        </IconButton>
-      </Box>
     </Box>
   );
 }

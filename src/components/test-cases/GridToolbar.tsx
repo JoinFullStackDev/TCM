@@ -72,26 +72,31 @@ export default function GridToolbar(props: {
         Export CSV
       </Button>
 
-      {runs && runs.length > 0 && (
-        <FormControl size="small" sx={{ minWidth: 180, ml: 1 }}>
-          <InputLabel sx={{ fontSize: '0.75rem' }}>Test Run</InputLabel>
-          <Select
-            value={selectedRunId ?? ''}
-            onChange={(e) => onRunChange?.(e.target.value || null)}
-            label="Test Run"
-            sx={{ fontSize: '0.75rem', height: 32 }}
-          >
-            <MenuItem value="">
-              <Typography variant="caption" sx={{ color: 'text.secondary' }}>No run selected</Typography>
-            </MenuItem>
-            {runs.map((r) => (
+      <FormControl size="small" sx={{ minWidth: 200, ml: 1 }}>
+        <InputLabel sx={{ fontSize: '0.75rem' }}>Test Run</InputLabel>
+        <Select
+          value={selectedRunId ?? ''}
+          onChange={(e) => onRunChange?.(e.target.value || null)}
+          label="Test Run"
+          sx={{ fontSize: '0.75rem', height: 32 }}
+          displayEmpty
+        >
+          <MenuItem value="">
+            <Typography variant="caption" sx={{ color: 'text.secondary' }}>No run selected</Typography>
+          </MenuItem>
+          {runs && runs.length > 0 ? (
+            runs.map((r) => (
               <MenuItem key={r.id} value={r.id}>
                 <Typography variant="caption">{r.name}</Typography>
               </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-      )}
+            ))
+          ) : (
+            <MenuItem disabled>
+              <Typography variant="caption" sx={{ color: 'text.disabled' }}>No runs yet — create one from Test Runs page</Typography>
+            </MenuItem>
+          )}
+        </Select>
+      </FormControl>
 
       <Box sx={{ flex: 1 }} />
 

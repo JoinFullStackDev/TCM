@@ -53,9 +53,21 @@ export default function CreateTestRunDialog({ open, onClose, onCreated }: Create
   useEffect(() => {
     if (projectId) {
       fetch(`/api/projects/${projectId}/suites`).then((r) => r.ok ? r.json() : []).then(setSuites);
+      fetch(`/api/projects/${projectId}/test-cases`)
+        .then((r) => r.ok ? r.json() : [])
+        .then((cases: { platform_tags?: string[] }[]) => {
+          const platforms = new Set<string>();
+          for (const tc of cases) {
+            for (const p of tc.platform_tags ?? []) {
+              platforms.add(p.charAt(0).toUpperCase() + p.slice(1));
+            }
+          }
+          if (platforms.size > 0) setEnvironments([...platforms]);
+        });
     } else {
       setSuites([]);
       setSuiteId('');
+      setEnvironments([]);
     }
   }, [projectId]);
 
@@ -157,6 +169,7 @@ export default function CreateTestRunDialog({ open, onClose, onCreated }: Create
               {([
                 { value: 'Desktop', color: palette.primary.main },
                 { value: 'Tablet', color: palette.info.main },
+                { value: 'Mobile', color: palette.success.main },
               ] as const).map((env) => {
                 const selected = environments.includes(env.value);
                 return (

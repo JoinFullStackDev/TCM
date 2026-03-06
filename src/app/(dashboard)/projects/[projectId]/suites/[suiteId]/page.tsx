@@ -446,6 +446,9 @@ export default function SuiteViewPage() {
               filters={filters}
               onFiltersChange={setFilters}
               availableTags={availableTags}
+              runs={runs}
+              selectedRunId={selectedRunId}
+              onRunChange={handleRunChange}
             />
 
             {canWrite && (

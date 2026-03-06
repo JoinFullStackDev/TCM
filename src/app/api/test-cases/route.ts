@@ -60,15 +60,25 @@ export async function GET(request: Request) {
 
     const { data: results } = await resultsQuery;
 
-    const caseStatusMap: Record<string, Record<string, string>> = {};
-    const stepStatusMap: Record<string, Record<string, Record<string, string>>> = {};
+    const statusPriority: Record<string, number> = { fail: 4, blocked: 3, skip: 2, not_run: 1, pass: 0 };
+    const worstStatus = (statuses: string[]): string => {
+      let worst = 'pass';
+      let worstP = 0;
+      for (const s of statuses) {
+        const p = statusPriority[s] ?? 0;
+        if (p > worstP) { worst = s; worstP = p; }
+      }
+      return worst;
+    };
+
+    const caseplatformStatuses: Record<string, Record<string, string[]>> = {};
+    const stepStatusMap: Record<string, Record<string, string>> = {};
 
     if (results && results.length > 0) {
       for (const r of results) {
-        if (!caseStatusMap[r.test_case_id]) caseStatusMap[r.test_case_id] = {};
-        if (!caseStatusMap[r.test_case_id][r.platform]) {
-          caseStatusMap[r.test_case_id][r.platform] = r.status;
-        }
+        if (!caseplatformStatuses[r.test_case_id]) caseplatformStatuses[r.test_case_id] = {};
+        if (!caseplatformStatuses[r.test_case_id][r.platform]) caseplatformStatuses[r.test_case_id][r.platform] = [];
+        caseplatformStatuses[r.test_case_id][r.platform].push(r.status);
 
         if (includeSteps && r.test_step_id) {
           const stepKey = `${r.test_case_id}:${r.test_step_id}`;
@@ -80,8 +90,26 @@ export async function GET(request: Request) {
       }
     }
 
+    const stepCounts: Record<string, number> = {};
+    if (includeSteps) {
+      for (const tc of testCases) {
+        const steps = (tc as Record<string, unknown>).test_steps as Array<Record<string, unknown>> | undefined;
+        stepCounts[tc.id] = steps?.length ?? 0;
+      }
+    }
+
     for (const tc of testCases) {
-      (tc as Record<string, unknown>).platform_status = caseStatusMap[tc.id] ?? {};
+      const platformStatuses = caseplatformStatuses[tc.id] ?? {};
+      const aggregated: Record<string, string> = {};
+      const totalSteps = stepCounts[tc.id] ?? 0;
+
+      for (const [platform, statuses] of Object.entries(platformStatuses)) {
+        if (totalSteps > 0 && statuses.length < totalSteps) {
+          statuses.push('not_run');
+        }
+        aggregated[platform] = worstStatus(statuses);
+      }
+      (tc as Record<string, unknown>).platform_status = aggregated;
 
       if (includeSteps) {
         const steps = (tc as Record<string, unknown>).test_steps as Array<Record<string, unknown>> | undefined;

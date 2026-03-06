@@ -242,26 +242,29 @@ function SortableStepRow({
 
       {activePlatforms.map((p) => {
         const status = step.step_status?.[p] as ExecutionStatus | undefined;
-        const clickable = canWrite && !!selectedRunId;
+        const hasStatus = status && status !== 'not_run';
         return (
           <TableCell key={p} align="center" sx={{ width: 90 }}>
-            {status && status !== 'not_run' ? (
-              <Box
-                onClick={clickable ? (e) => onStatusClick(e, step.id, p) : undefined}
-                sx={{ cursor: clickable ? 'pointer' : 'default', display: 'inline-flex' }}
-              >
+            <Box
+              onClick={canWrite ? (e) => onStatusClick(e, step.id, p) : undefined}
+              onDoubleClick={canWrite ? (e) => onStatusClick(e, step.id, p) : undefined}
+              sx={{
+                cursor: canWrite ? 'pointer' : 'default',
+                display: 'inline-flex',
+                borderRadius: '4px',
+                px: 0.5,
+                py: 0.25,
+                minWidth: 50,
+                justifyContent: 'center',
+                '&:hover': canWrite ? { bgcolor: alpha(palette.primary.main, 0.08) } : {},
+              }}
+            >
+              {hasStatus ? (
                 <StatusBadge status={status} />
-              </Box>
-            ) : selectedRunId ? (
-              <Box
-                onClick={clickable ? (e) => onStatusClick(e, step.id, p) : undefined}
-                sx={{ cursor: clickable ? 'pointer' : 'default' }}
-              >
+              ) : (
                 <Typography variant="caption" sx={{ color: 'text.disabled' }}>—</Typography>
-              </Box>
-            ) : (
-              <Typography variant="caption" sx={{ color: 'text.disabled' }}>—</Typography>
-            )}
+              )}
+            </Box>
           </TableCell>
         );
       })}
@@ -301,10 +304,14 @@ export default function StepDetailPanel({
 
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
   const [menuContext, setMenuContext] = useState<{ stepId: string; platform: Platform } | null>(null);
+  const [noRunWarning, setNoRunWarning] = useState(false);
 
-  const propsKeyRef = useRef(propSteps.map((s) => s.id).join(','));
+  const buildKey = (steps: StepWithStatus[]) =>
+    steps.map((s) => `${s.id}:${JSON.stringify(s.step_status ?? {})}`).join(',');
+
+  const propsKeyRef = useRef(buildKey(propSteps));
   useEffect(() => {
-    const newKey = propSteps.map((s) => s.id).join(',');
+    const newKey = buildKey(propSteps);
     if (newKey !== propsKeyRef.current) {
       propsKeyRef.current = newKey;
       setLocalSteps(propSteps);
@@ -416,7 +423,12 @@ export default function StepDetailPanel({
 
   const handleStatusClick = useCallback(
     (e: React.MouseEvent<HTMLElement>, stepId: string, platform: Platform) => {
-      if (!canWrite || !selectedRunId) return;
+      if (!canWrite) return;
+      if (!selectedRunId) {
+        setNoRunWarning(true);
+        setTimeout(() => setNoRunWarning(false), 3000);
+        return;
+      }
       setMenuAnchor(e.currentTarget);
       setMenuContext({ stepId, platform });
     },
@@ -439,7 +451,7 @@ export default function StepDetailPanel({
   const sortableIds = localSteps.map((s, i) => s.id || `new-${i}`);
 
   return (
-    <Box sx={{ px: 3, py: 1.5, bgcolor: alpha(palette.background.surface2, 0.5) }}>
+    <Box sx={{ px: 3, py: 1.5, bgcolor: palette.background.default, borderTop: `1px solid ${alpha(palette.neutral.main, 0.15)}`, borderBottom: `1px solid ${alpha(palette.neutral.main, 0.15)}`, height: '100%', overflow: 'auto' }}>
       {canWrite && (
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', mb: 0.5, minHeight: 20 }}>
           {saveStatus === 'saving' && (
@@ -463,8 +475,39 @@ export default function StepDetailPanel({
         </Box>
       )}
 
+      {noRunWarning && (
+        <Box
+          sx={{
+            mb: 1,
+            px: 1.5,
+            py: 0.75,
+            borderRadius: 1,
+            bgcolor: alpha(palette.warning.main, 0.1),
+            border: `1px solid ${alpha(palette.warning.main, 0.3)}`,
+          }}
+        >
+          <Typography variant="caption" sx={{ color: palette.warning.main, fontWeight: 500 }}>
+            Select a test run from the &quot;Test Run&quot; dropdown in the grid toolbar to record execution results.
+          </Typography>
+        </Box>
+      )}
+
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-        <Table size="small" sx={{ '& .MuiTableCell-root': { py: 0.5, borderColor: alpha(palette.neutral.main, 0.08) } }}>
+        <Table size="small" sx={{
+          border: `1px solid ${alpha(palette.neutral.main, 0.15)}`,
+          borderRadius: '6px',
+          overflow: 'hidden',
+          '& .MuiTableCell-root': {
+            py: 0.5,
+            borderBottom: `1px solid ${alpha(palette.neutral.main, 0.15)}`,
+            borderRight: `1px solid ${alpha(palette.neutral.main, 0.08)}`,
+            '&:last-child': { borderRight: 'none' },
+          },
+          '& .MuiTableHead-root .MuiTableCell-root': {
+            bgcolor: palette.background.surface2,
+            borderBottom: `2px solid ${alpha(palette.neutral.main, 0.2)}`,
+          },
+        }}>
           <TableHead>
             <TableRow>
               <TableCell sx={{ fontWeight: 600, fontSize: '0.7rem', color: 'text.secondary', width: 60 }}>#</TableCell>

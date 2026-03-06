@@ -10,6 +10,11 @@ import ListItemButton from '@mui/material/ListItemButton';
 import ListItemText from '@mui/material/ListItemText';
 import Checkbox from '@mui/material/Checkbox';
 import Typography from '@mui/material/Typography';
+import Select from '@mui/material/Select';
+import MenuItem from '@mui/material/MenuItem';
+import FormControl from '@mui/material/FormControl';
+import InputLabel from '@mui/material/InputLabel';
+import Divider from '@mui/material/Divider';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import ClearIcon from '@mui/icons-material/Clear';
 import { alpha } from '@mui/material/styles';
@@ -26,10 +31,18 @@ interface FilterValues {
   category: TestCaseCategory[];
 }
 
+interface TestRunOption {
+  id: string;
+  name: string;
+}
+
 interface GridFilterBarProps {
   filters: FilterValues;
   onFiltersChange: (filters: FilterValues) => void;
   availableTags: string[];
+  runs?: TestRunOption[];
+  selectedRunId?: string | null;
+  onRunChange?: (runId: string | null) => void;
 }
 
 interface FilterDef {
@@ -105,7 +118,7 @@ const FILTER_DEFS: FilterDef[] = [
   },
 ];
 
-export default function GridFilterBar({ filters, onFiltersChange, availableTags }: GridFilterBarProps) {
+export default function GridFilterBar({ filters, onFiltersChange, availableTags, runs, selectedRunId, onRunChange }: GridFilterBarProps) {
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
   const [activeFilter, setActiveFilter] = useState<FilterDef | null>(null);
   const [tagAnchorEl, setTagAnchorEl] = useState<HTMLElement | null>(null);
@@ -259,6 +272,31 @@ export default function GridFilterBar({ filters, onFiltersChange, availableTags 
         >
           Clear all
         </Button>
+      )}
+
+      {onRunChange && (
+        <>
+          <Box sx={{ flex: 1 }} />
+          <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
+          <FormControl size="small" sx={{ minWidth: 180 }}>
+            <InputLabel sx={{ fontSize: '0.75rem' }}>Test Run</InputLabel>
+            <Select
+              value={selectedRunId ?? ''}
+              onChange={(e) => onRunChange(e.target.value || null)}
+              label="Test Run"
+              sx={{ fontSize: '0.75rem', height: 28, '& .MuiSelect-select': { py: 0.5 } }}
+            >
+              <MenuItem value="">
+                <Typography variant="caption" sx={{ color: 'text.secondary' }}>None</Typography>
+              </MenuItem>
+              {(runs ?? []).map((r) => (
+                <MenuItem key={r.id} value={r.id}>
+                  <Typography variant="caption">{r.name}</Typography>
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        </>
       )}
 
       <Popover

@@ -171,8 +171,10 @@ export default function TestCaseDataGrid({
     (params: GridRowParams<TestCaseRow>) => {
       const stepCount = params.row.test_steps?.length ?? 0;
       if (stepCount === 0 && !canWrite) return 0;
+      const headerRow = 44;
       const addButtonRow = canWrite ? 44 : 0;
-      return Math.min(44 + Math.max(stepCount, 0) * 44 + addButtonRow, 500);
+      const contentHeight = headerRow + Math.max(stepCount, 0) * 44 + addButtonRow;
+      return Math.max(contentHeight, 200);
     },
     [canWrite],
   );
@@ -287,6 +289,8 @@ export default function TestCaseDataGrid({
         editable: canWrite,
         type: 'singleSelect',
         valueOptions: PRIORITY_OPTIONS,
+        valueGetter: (value: string | null) => value ?? '',
+        valueSetter: (value: string, row: TestCaseRow) => ({ ...row, priority: (value || null) as TestCaseRow['priority'] }),
         renderCell: (params: GridRenderCellParams<TestCaseRow>) => {
           const val = params.value as Priority | null;
           if (!val) return null;
@@ -313,6 +317,8 @@ export default function TestCaseDataGrid({
         editable: canWrite,
         type: 'singleSelect',
         valueOptions: CATEGORY_OPTIONS,
+        valueGetter: (value: string | null) => value ?? '',
+        valueSetter: (value: string, row: TestCaseRow) => ({ ...row, category: (value || null) as TestCaseRow['category'] }),
         renderCell: (params: GridRenderCellParams<TestCaseRow>) => {
           const val = params.value as TestCaseCategory | null;
           if (!val) return null;
@@ -385,6 +391,8 @@ export default function TestCaseDataGrid({
         width: columnWidths?.description ?? 180,
         sortable: false,
         editable: canWrite,
+        valueGetter: (value: string | null) => value ?? '',
+        valueSetter: (value: string, row: TestCaseRow) => ({ ...row, description: value || null }),
         renderCell: (params: GridRenderCellParams<TestCaseRow>) => {
           const val = params.value as string | null;
           if (!val) return <Typography variant="caption" sx={{ color: 'text.disabled' }}>--</Typography>;
@@ -402,6 +410,8 @@ export default function TestCaseDataGrid({
         width: columnWidths?.precondition ?? 160,
         sortable: false,
         editable: canWrite,
+        valueGetter: (value: string | null) => value ?? '',
+        valueSetter: (value: string, row: TestCaseRow) => ({ ...row, precondition: value || null }),
         renderCell: (params: GridRenderCellParams<TestCaseRow>) => {
           const val = params.value as string | null;
           if (!val) return <Typography variant="caption" sx={{ color: 'text.disabled' }}>--</Typography>;

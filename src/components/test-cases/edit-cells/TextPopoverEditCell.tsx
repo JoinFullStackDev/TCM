@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import Box from '@mui/material/Box';
 import Popover from '@mui/material/Popover';
 import TextField from '@mui/material/TextField';
@@ -9,7 +9,8 @@ import { palette } from '@/theme/palette';
 
 export default function TextPopoverEditCell(params: GridRenderEditCellParams) {
   const apiRef = useGridApiContext();
-  const cellRef = useRef<HTMLDivElement>(null);
+  const [anchorEl, setAnchorEl] = useState<HTMLDivElement | null>(null);
+  const anchorRef = useCallback((node: HTMLDivElement | null) => { setAnchorEl(node); }, []);
   const [text, setText] = useState<string>((params.value as string) ?? '');
 
   const commit = useCallback(() => {
@@ -36,10 +37,10 @@ export default function TextPopoverEditCell(params: GridRenderEditCellParams) {
   };
 
   return (
-    <Box ref={cellRef} sx={{ width: '100%', height: '100%' }}>
+    <Box ref={anchorRef} sx={{ width: '100%', height: '100%' }}>
       <Popover
-        open
-        anchorEl={cellRef.current}
+        open={Boolean(anchorEl)}
+        anchorEl={anchorEl}
         onClose={commit}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
         transformOrigin={{ vertical: 'top', horizontal: 'left' }}

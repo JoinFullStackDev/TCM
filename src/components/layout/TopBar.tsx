@@ -18,6 +18,8 @@ import Link from '@mui/material/Link';
 import { alpha } from '@mui/material/styles';
 import LogoutIcon from '@mui/icons-material/Logout';
 import NavigateNextIcon from '@mui/icons-material/NavigateNext';
+import MenuOpenIcon from '@mui/icons-material/MenuOpen';
+import MenuIcon from '@mui/icons-material/Menu';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { ROLE_LABELS } from '@/lib/auth/rbac';
 import { palette, semanticColors } from '@/theme/palette';
@@ -130,7 +132,7 @@ function useBreadcrumbs(pathname: string): BreadcrumbItem[] {
   return crumbs;
 }
 
-export default function TopBar() {
+export default function TopBar({ collapsed, onToggleCollapsed }: { collapsed: boolean; onToggleCollapsed: () => void }) {
   const { profile, role, signOut } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
@@ -159,7 +161,28 @@ export default function TopBar() {
         bgcolor: 'background.paper',
       }}
     >
-      <Breadcrumbs separator={<NavigateNextIcon sx={{ fontSize: 16 }} />}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+        <IconButton
+          onClick={onToggleCollapsed}
+          size="small"
+          sx={{
+            width: 32,
+            height: 32,
+            border: `1px solid ${palette.divider}`,
+            borderRadius: '8px',
+            color: 'text.secondary',
+            transition: 'all 0.15s',
+            '&:hover': {
+              color: palette.primary.main,
+              borderColor: alpha(palette.primary.main, 0.4),
+              bgcolor: alpha(palette.primary.main, 0.08),
+            },
+          }}
+        >
+          {collapsed ? <MenuIcon sx={{ fontSize: 18 }} /> : <MenuOpenIcon sx={{ fontSize: 18 }} />}
+        </IconButton>
+
+        <Breadcrumbs separator={<NavigateNextIcon sx={{ fontSize: 16 }} />}>
         {breadcrumbs.map((crumb, i) => {
           const isLast = i === breadcrumbs.length - 1;
           return crumb.href && !isLast ? (
@@ -180,6 +203,7 @@ export default function TopBar() {
           );
         })}
       </Breadcrumbs>
+      </Box>
 
       <Box>
         <IconButton
