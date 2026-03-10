@@ -27,35 +27,21 @@ export async function middleware(request: NextRequest) {
     },
   );
 
-  const { pathname } = request.nextUrl;
-  const isPublicPath = PUBLIC_PATHS.some((p) => pathname.startsWith(p));
-
   let user = null;
   try {
-    const { data } = await Promise.race([
-      supabase.auth.getUser(),
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('Auth timeout')), 5000),
-      ),
-    ]);
+    const { data } = await supabase.auth.getUser();
     user = data.user;
   } catch {
-    if (!isPublicPath) {
-      const response = NextResponse.redirect(
-        new URL('/login', request.url),
-      );
-      request.cookies.getAll().forEach(({ name }) => {
-        if (name.startsWith('sb-')) {
-          response.cookies.delete(name);
-        }
-      });
-      return response;
-    }
+    user = null;
   }
+
+  const { pathname } = request.nextUrl;
+  const isPublicPath = PUBLIC_PATHS.some((p) => pathname.startsWith(p));
 
   if (!user && !isPublicPath) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';
+    url.search = '';
     return NextResponse.redirect(url);
   }
 
