@@ -20,10 +20,15 @@ export async function withAuth(
 ): Promise<AuthResult> {
   const supabase = await createClient();
 
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
+  let user = null;
+  let authError: unknown = null;
+  try {
+    const result = await supabase.auth.getUser();
+    user = result.data.user;
+    authError = result.error;
+  } catch (e) {
+    authError = e;
+  }
 
   if (authError || !user) {
     return {

@@ -59,11 +59,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   useEffect(() => {
+    const AUTH_TIMEOUT_MS = 8000;
+
     const getInitialSession = async () => {
       try {
         const {
           data: { user: currentUser },
-        } = await supabase.auth.getUser();
+        } = await Promise.race([
+          supabase.auth.getUser(),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('Auth timeout')), AUTH_TIMEOUT_MS),
+          ),
+        ]);
 
         setUser(currentUser);
         if (currentUser) {
@@ -81,22 +88,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      try {
-        const sessionUser = session?.user ?? null;
-        setUser(sessionUser);
-
-        if (sessionUser) {
-          await fetchProfile(sessionUser.id);
-        } else {
-          setProfile(null);
-        }
-      } catch {
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT' || !session?.user) {
         setUser(null);
         setProfile(null);
-      } finally {
         setIsLoading(false);
+        return;
       }
+
+      const sessionUser = session.user;
+      setUser(sessionUser);
+
+      setTimeout(async () => {
+        try {
+          await fetchProfile(sessionUser.id);
+        } catch {
+          // Profile fetch failed — user is set, profile stays null
+        } finally {
+          setIsLoading(false);
+        }
+      }, 0);
     });
 
     return () => subscription.unsubscribe();

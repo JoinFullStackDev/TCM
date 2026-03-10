@@ -109,7 +109,11 @@ function LoginForm() {
 
   const error = searchParams.get('error');
 
-  useEffect(() => setMounted(true), []);
+  useEffect(() => {
+    setMounted(true);
+    const supabase = createClient();
+    supabase.auth.signOut({ scope: 'local' });
+  }, []);
 
   const handleGoogleSignIn = async () => {
     setLoading(true);
