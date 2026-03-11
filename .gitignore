@@ -41,3 +41,5 @@ next-env.d.ts
 
 # generated knowledge base
 src/data/knowledge-base.json
+
+.claude/
