@@ -43,3 +43,7 @@ next-env.d.ts
 src/data/knowledge-base.json
 
 .claude/
+
+# playwright auth state (contains session cookies — never commit)
+playwright/.auth/
+.playwright-mcp/
