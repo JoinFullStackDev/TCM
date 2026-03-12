@@ -20,6 +20,7 @@ import {
   type GridEventListener,
   type GridProSlotsComponent,
   type GridSlotProps,
+  type GridRowOrderChangeParams,
 } from '@mui/x-data-grid-pro';
 import { alpha } from '@mui/material/styles';
 import { palette, semanticColors } from '@/theme/palette';
@@ -119,6 +120,8 @@ interface TestCaseDataGridProps {
   slotProps?: Partial<GridSlotProps>;
   selectedRunId?: string | null;
   onStepStatusChange?: (testCaseId: string, stepId: string, platform: Platform, status: ExecutionStatus) => void;
+  rowReordering?: boolean;
+  onRowOrderChange?: (params: GridRowOrderChangeParams) => void;
 }
 
 export default function TestCaseDataGrid({
@@ -143,6 +146,8 @@ export default function TestCaseDataGrid({
   slotProps,
   selectedRunId,
   onStepStatusChange,
+  rowReordering = false,
+  onRowOrderChange,
 }: TestCaseDataGridProps) {
   const apiRef = useGridApiRef();
 
@@ -676,11 +681,13 @@ export default function TestCaseDataGrid({
         defaultGroupingExpansionDepth={-1}
         getDetailPanelContent={getDetailPanelContent}
         getDetailPanelHeight={getDetailPanelHeight}
+        rowReordering={rowReordering}
+        onRowOrderChange={onRowOrderChange}
         slots={slots}
         slotProps={slotProps}
         initialState={{
           sorting: {
-            sortModel: [{ field: 'display_id', sort: 'asc' }],
+            sortModel: [{ field: rowReordering ? 'position' : 'display_id', sort: 'asc' }],
           },
         }}
         sx={{
@@ -691,6 +698,12 @@ export default function TestCaseDataGrid({
           '& .MuiDataGrid-columnHeader:focus, & .MuiDataGrid-columnHeader:focus-within': {
             outline: 'none',
           },
+          ...(rowReordering && {
+            '& .MuiDataGrid-rowReorderCell': {
+              color: palette.text.disabled,
+              '&:hover': { color: palette.text.secondary },
+            },
+          }),
         }}
       />
     </Box>

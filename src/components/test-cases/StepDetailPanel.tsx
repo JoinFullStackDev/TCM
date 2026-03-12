@@ -20,6 +20,7 @@ import CircularProgress from '@mui/material/CircularProgress';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
 import AddIcon from '@mui/icons-material/Add';
+import PlaylistAddIcon from '@mui/icons-material/PlaylistAdd';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
 import { alpha } from '@mui/material/styles';
@@ -93,6 +94,7 @@ interface SortableStepRowProps {
   onFieldChange: (index: number, field: string, value: string | boolean) => void;
   onCommitEdit: () => void;
   onDelete: (index: number) => void;
+  onInsertBelow: (index: number) => void;
   onStatusClick: (e: React.MouseEvent<HTMLElement>, stepId: string, platform: Platform) => void;
 }
 
@@ -107,6 +109,7 @@ function SortableStepRow({
   onFieldChange,
   onCommitEdit,
   onDelete,
+  onInsertBelow,
   onStatusClick,
 }: SortableStepRowProps) {
   const {
@@ -188,13 +191,15 @@ function SortableStepRow({
       <TableCell sx={{ width: 60 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
           {canWrite && (
-            <Box
-              {...attributes}
-              {...listeners}
-              sx={{ cursor: 'grab', color: 'text.disabled', display: 'flex', '&:active': { cursor: 'grabbing' }, opacity: 0.5, '&:hover': { opacity: 1 } }}
-            >
-              <DragIndicatorIcon sx={{ fontSize: 14 }} />
-            </Box>
+            <Tooltip title="Drag to reorder" enterDelay={400}>
+              <Box
+                {...attributes}
+                {...listeners}
+                sx={{ cursor: 'grab', color: 'text.disabled', display: 'flex', '&:active': { cursor: 'grabbing' }, opacity: 0.7, '&:hover': { opacity: 1 } }}
+              >
+                <DragIndicatorIcon sx={{ fontSize: 16 }} />
+              </Box>
+            </Tooltip>
           )}
           <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary' }}>
             {step.step_number}
@@ -270,17 +275,29 @@ function SortableStepRow({
       })}
 
       {canWrite && (
-        <TableCell sx={{ width: 36 }}>
-          <Tooltip title="Delete step">
-            <IconButton
-              size="small"
-              onClick={() => onDelete(index)}
-              className="step-actions"
-              sx={{ opacity: 0, transition: 'opacity 0.15s', color: 'text.secondary', '&:hover': { color: palette.error.main } }}
-            >
-              <DeleteOutlineIcon sx={{ fontSize: 14 }} />
-            </IconButton>
-          </Tooltip>
+        <TableCell sx={{ width: 56 }}>
+          <Box sx={{ display: 'flex', gap: 0 }}>
+            <Tooltip title="Insert step below">
+              <IconButton
+                size="small"
+                onClick={() => onInsertBelow(index)}
+                className="step-actions"
+                sx={{ opacity: 0, transition: 'opacity 0.15s', color: 'text.secondary', '&:hover': { color: palette.primary.main } }}
+              >
+                <PlaylistAddIcon sx={{ fontSize: 14 }} />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Delete step">
+              <IconButton
+                size="small"
+                onClick={() => onDelete(index)}
+                className="step-actions"
+                sx={{ opacity: 0, transition: 'opacity 0.15s', color: 'text.secondary', '&:hover': { color: palette.error.main } }}
+              >
+                <DeleteOutlineIcon sx={{ fontSize: 14 }} />
+              </IconButton>
+            </Tooltip>
+          </Box>
         </TableCell>
       )}
     </TableRow>
@@ -396,6 +413,25 @@ export default function StepDetailPanel({
       },
     ]);
   }, [updateSteps]);
+
+  const handleInsertBelow = useCallback(
+    (index: number) => {
+      updateSteps((prev) => {
+        const newStep: StepWithStatus = {
+          id: `temp-${Date.now()}`,
+          step_number: index + 2,
+          description: '',
+          test_data: null,
+          expected_result: null,
+          is_automation_only: false,
+        };
+        const copy = [...prev];
+        copy.splice(index + 1, 0, newStep);
+        return copy.map((s, i) => ({ ...s, step_number: i + 1 }));
+      });
+    },
+    [updateSteps],
+  );
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -526,7 +562,7 @@ export default function StepDetailPanel({
                   {p.charAt(0).toUpperCase() + p.slice(1)}
                 </TableCell>
               ))}
-              {canWrite && <TableCell sx={{ width: 36 }} />}
+              {canWrite && <TableCell sx={{ width: 56 }} />}
             </TableRow>
           </TableHead>
           <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
@@ -544,6 +580,7 @@ export default function StepDetailPanel({
                   onFieldChange={handleFieldChange}
                   onCommitEdit={handleCommitEdit}
                   onDelete={handleDelete}
+                  onInsertBelow={handleInsertBelow}
                   onStatusClick={handleStatusClick}
                 />
               ))}

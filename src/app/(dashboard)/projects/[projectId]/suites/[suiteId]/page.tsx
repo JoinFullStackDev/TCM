@@ -15,7 +15,7 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import ScienceOutlinedIcon from '@mui/icons-material/ScienceOutlined';
 import NextLink from 'next/link';
 import { alpha } from '@mui/material/styles';
-import type { GridColumnVisibilityModel, GridEventListener } from '@mui/x-data-grid-pro';
+import type { GridColumnVisibilityModel, GridEventListener, GridRowOrderChangeParams } from '@mui/x-data-grid-pro';
 import PageTransition from '@/components/animations/PageTransition';
 import TestCaseDataGrid, { type TestCaseRow } from '@/components/test-cases/TestCaseDataGrid';
 import TestCaseDrawer from '@/components/test-cases/TestCaseDrawer';
@@ -311,6 +311,29 @@ export default function SuiteViewPage() {
     }
   }, []);
 
+  const handleRowOrderChange = useCallback(
+    async (params: GridRowOrderChangeParams) => {
+      const { oldIndex, targetIndex } = params;
+      const reordered = [...testCases];
+      const [moved] = reordered.splice(oldIndex, 1);
+      reordered.splice(targetIndex, 0, moved);
+
+      const items = reordered.map((tc, i) => ({ id: tc.id, position: i }));
+      setTestCases(reordered.map((tc, i) => ({ ...tc, position: i })));
+
+      try {
+        await fetch(`/api/suites/${suiteId}/test-cases/reorder`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ items }),
+        });
+      } catch {
+        fetchTestCases();
+      }
+    },
+    [testCases, suiteId, fetchTestCases],
+  );
+
   const filteredTestCases = useMemo(() => {
     return testCases.filter((tc) => {
       if (
@@ -478,6 +501,8 @@ export default function SuiteViewPage() {
               columnWidths={columnConfig.columnWidths}
               selectedRunId={selectedRunId}
               onStepStatusChange={handleStepStatusChange}
+              rowReordering={canWrite}
+              onRowOrderChange={handleRowOrderChange}
               slots={{ toolbar: GridToolbar }}
               slotProps={{ toolbar: { saveStatus, runs, selectedRunId, onRunChange: handleRunChange } }}
             />

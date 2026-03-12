@@ -99,13 +99,15 @@ function StepRow({
     >
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
         {!readOnly && (
-          <Box
-            {...attributes}
-            {...listeners}
-            sx={{ cursor: 'grab', color: 'text.secondary', display: 'flex', '&:active': { cursor: 'grabbing' } }}
-          >
-            <DragIndicatorIcon fontSize="small" />
-          </Box>
+          <Tooltip title="Drag to reorder" enterDelay={400}>
+            <Box
+              {...attributes}
+              {...listeners}
+              sx={{ cursor: 'grab', color: 'text.disabled', display: 'flex', '&:active': { cursor: 'grabbing' }, opacity: 0.7, '&:hover': { opacity: 1, color: 'text.secondary' } }}
+            >
+              <DragIndicatorIcon fontSize="small" />
+            </Box>
+          </Tooltip>
         )}
         <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', minWidth: 32 }}>
           #{step.step_number}

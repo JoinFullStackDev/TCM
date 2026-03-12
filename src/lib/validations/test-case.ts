@@ -48,6 +48,16 @@ export const bulkUpdateSchema = z.object({
   }),
 });
 
+export const reorderTestCasesSchema = z.object({
+  items: z.array(
+    z.object({
+      id: z.string().uuid(),
+      position: z.number().int().min(0),
+    }),
+  ).min(1),
+});
+
 export type CreateTestCaseInput = z.infer<typeof createTestCaseSchema>;
 export type UpdateTestCaseInput = z.infer<typeof updateTestCaseSchema>;
 export type BulkUpdateInput = z.infer<typeof bulkUpdateSchema>;
+export type ReorderTestCasesInput = z.infer<typeof reorderTestCasesSchema>;
