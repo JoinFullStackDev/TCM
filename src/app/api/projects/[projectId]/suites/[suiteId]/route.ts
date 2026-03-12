@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { withAuth, validationError, notFound, serverError, conflict } from '@/lib/api/helpers';
+import { createServiceClient } from '@/lib/supabase/server';
 import { updateSuiteSchema } from '@/lib/validations/suite';
 
 interface RouteContext {
@@ -45,6 +46,16 @@ export async function PATCH(request: Request, context: RouteContext) {
     if (existing) return conflict(`A suite with prefix "${parsed.data.prefix}" already exists`);
   }
 
+  let oldPrefix: string | null = null;
+  if (parsed.data.prefix) {
+    const { data: currentSuite } = await supabase
+      .from('suites')
+      .select('prefix')
+      .eq('id', suiteId)
+      .single();
+    oldPrefix = currentSuite?.prefix ?? null;
+  }
+
   const { data: suite, error } = await supabase
     .from('suites')
     .update(parsed.data)
@@ -53,6 +64,28 @@ export async function PATCH(request: Request, context: RouteContext) {
     .single();
 
   if (error || !suite) return notFound('Suite');
+
+  if (parsed.data.prefix && oldPrefix && oldPrefix !== parsed.data.prefix) {
+    const serviceClient = await createServiceClient();
+    const { data: cases } = await serviceClient
+      .from('test_cases')
+      .select('id, sequence_number')
+      .eq('suite_id', suiteId);
+
+    if (cases?.length) {
+      await Promise.all(
+        cases.map((tc) =>
+          serviceClient
+            .from('test_cases')
+            .update({
+              display_id: `${parsed.data.prefix}-${tc.sequence_number}`,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', tc.id)
+        )
+      );
+    }
+  }
 
   return NextResponse.json(suite);
 }
