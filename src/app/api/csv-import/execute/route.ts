@@ -81,13 +81,26 @@ export async function POST(request: Request) {
     (existingSuites ?? []).map((s) => [s.prefix, s]),
   );
 
-  const { data: existingCases } = await supabase
-    .from('test_cases')
-    .select('id, display_id, suite_id')
-    .in('suite_id', (existingSuites ?? []).map((s) => s.id));
+  const suiteIds = (existingSuites ?? []).map((s) => s.id);
+  const allExistingCases: Array<{ id: string; display_id: string; suite_id: string }> = [];
+  if (suiteIds.length > 0) {
+    const PAGE = 1000;
+    let from = 0;
+    while (true) {
+      const { data } = await supabase
+        .from('test_cases')
+        .select('id, display_id, suite_id')
+        .in('suite_id', suiteIds)
+        .range(from, from + PAGE - 1);
+      if (!data || data.length === 0) break;
+      allExistingCases.push(...data);
+      if (data.length < PAGE) break;
+      from += PAGE;
+    }
+  }
 
   const existingCaseMap = new Map(
-    (existingCases ?? []).map((tc) => [tc.display_id, tc]),
+    allExistingCases.map((tc) => [tc.display_id, tc]),
   );
 
   let suiteColorIdx = (existingSuites ?? []).length;
@@ -137,7 +150,7 @@ export async function POST(request: Request) {
             continue;
           }
 
-          await supabase.from('test_cases').update({
+          const { error: updateErr } = await supabase.from('test_cases').update({
             title: tc.title,
             description: tc.description,
             precondition: tc.precondition,
@@ -146,10 +159,44 @@ export async function POST(request: Request) {
             updated_by: user.id,
           }).eq('id', existingCase.id);
 
-          await supabase.from('test_steps').delete().eq('test_case_id', existingCase.id);
-          if (tc.steps.length > 0) {
-            await insertSteps(supabase, existingCase.id, tc.steps);
+          if (updateErr) {
+            errors.push({ row_number: globalIdx + 1, error_message: `Failed to update ${tc.display_id}: ${updateErr.message}` });
+            errorCount++;
+            continue;
           }
+
+          const { error: deleteErr } = await supabase
+            .from('test_steps')
+            .delete()
+            .eq('test_case_id', existingCase.id);
+
+          if (deleteErr) {
+            errors.push({ row_number: globalIdx + 1, error_message: `Failed to delete old steps for ${tc.display_id}: ${deleteErr.message}` });
+            errorCount++;
+            continue;
+          }
+
+          if (tc.steps.length > 0) {
+            const { error: stepErr } = await insertSteps(supabase, existingCase.id, tc.steps);
+            if (stepErr) {
+              errors.push({ row_number: globalIdx + 1, error_message: `Steps deleted but new steps failed for ${tc.display_id}: ${stepErr}` });
+              errorCount++;
+              continue;
+            }
+          }
+
+          const allBugLinks = [...new Set(tc.bug_links ?? [])];
+          if (allBugLinks.length > 0) {
+            await supabase.from('bug_links').delete().eq('test_case_id', existingCase.id);
+            const linkRows = allBugLinks.map((url) => ({
+              test_case_id: existingCase.id,
+              url,
+              provider: detectProvider(url),
+              created_by: user.id,
+            }));
+            await supabase.from('bug_links').insert(linkRows);
+          }
+
           importedCount++;
           continue;
         }
@@ -191,7 +238,12 @@ export async function POST(request: Request) {
         suite.next_sequence = maxSeq;
 
         if (tc.steps.length > 0) {
-          await insertSteps(supabase, newCase.id, tc.steps);
+          const { error: stepErr } = await insertSteps(supabase, newCase.id, tc.steps);
+          if (stepErr) {
+            errors.push({ row_number: globalIdx + 1, error_message: `Created ${tc.display_id} but failed to insert steps: ${stepErr}` });
+            errorCount++;
+            continue;
+          }
         }
 
         const allBugLinks = [...new Set(tc.bug_links ?? [])];
@@ -252,12 +304,27 @@ export async function POST(request: Request) {
   });
 }
 
+function deduplicateStepNumbers(steps: ParsedTestCase['steps']): ParsedTestCase['steps'] {
+  const seen = new Set<number>();
+  let needsRenumber = false;
+  for (const s of steps) {
+    if (seen.has(s.step_number)) {
+      needsRenumber = true;
+      break;
+    }
+    seen.add(s.step_number);
+  }
+  if (!needsRenumber) return steps;
+  return steps.map((s, i) => ({ ...s, step_number: i + 1 }));
+}
+
 async function insertSteps(
   supabase: SupabaseClient,
   testCaseId: string,
   steps: ParsedTestCase['steps'],
-) {
-  const stepRows = steps.map((s) => ({
+): Promise<{ error: string | null }> {
+  const safeSteps = deduplicateStepNumbers(steps);
+  const stepRows = safeSteps.map((s) => ({
     test_case_id: testCaseId,
     step_number: s.step_number,
     description: s.description,
@@ -265,7 +332,8 @@ async function insertSteps(
     expected_result: s.expected_result ?? null,
     is_automation_only: s.is_automation_only,
   }));
-  await supabase.from('test_steps').insert(stepRows);
+  const { error } = await supabase.from('test_steps').insert(stepRows);
+  return { error: error?.message ?? null };
 }
 
 async function createImportTestRun(
