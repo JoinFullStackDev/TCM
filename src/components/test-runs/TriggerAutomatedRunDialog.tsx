@@ -11,6 +11,8 @@ import FormControl from "@mui/material/FormControl";
 import InputLabel from "@mui/material/InputLabel";
 import Select from "@mui/material/Select";
 import MenuItem from "@mui/material/MenuItem";
+import Checkbox from "@mui/material/Checkbox";
+import ListItemText from "@mui/material/ListItemText";
 import Typography from "@mui/material/Typography";
 import Box from "@mui/material/Box";
 import CircularProgress from "@mui/material/CircularProgress";
@@ -31,6 +33,8 @@ interface Props {
   onTriggered?: (testRunId: string, pipelineUrl: string | null) => void;
 }
 
+const ALL_SUITES = "__all__";
+
 export default function TriggerAutomatedRunDialog({
   open,
   projectId,
@@ -44,8 +48,8 @@ export default function TriggerAutomatedRunDialog({
   const [selectedProjectId, setSelectedProjectId] = useState(projectId ?? "");
   const [integrations, setIntegrations] = useState<Integration[]>([]);
   const [suites, setSuites] = useState<Suite[]>([]);
-  const [selectedSuiteId, setSelectedSuiteId] = useState(
-    preselectedSuiteId ?? "",
+  const [selectedSuiteIds, setSelectedSuiteIds] = useState<string[]>(
+    preselectedSuiteId ? [preselectedSuiteId] : [],
   );
   const [environment, setEnvironment] = useState<"dev" | "qa" | "uat">("qa");
   const [tagFilter, setTagFilter] = useState<"all" | "smoke" | "regression">(
@@ -91,7 +95,7 @@ export default function TriggerAutomatedRunDialog({
     if (open) {
       const initialProjectId = projectId ?? "";
       setSelectedProjectId(initialProjectId);
-      setSelectedSuiteId(preselectedSuiteId ?? "");
+      setSelectedSuiteIds(preselectedSuiteId ? [preselectedSuiteId] : []);
       setEnvironment("qa");
       setTagFilter("all");
       setError(null);
@@ -105,30 +109,45 @@ export default function TriggerAutomatedRunDialog({
   // Re-fetch when selected project changes (only relevant when no projectId prop)
   useEffect(() => {
     if (!open) return;
-    setSelectedSuiteId("");
+    setSelectedSuiteIds([]);
     setCicdCount(null);
     fetchProjectData(selectedProjectId);
   }, [selectedProjectId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (!selectedSuiteId) {
+    if (selectedSuiteIds.length === 0) {
       setCicdCount(null);
       return;
     }
     setLoadingCount(true);
     fetch(
-      `/api/projects/${selectedProjectId}/test-cases?suite_id=${selectedSuiteId}&automation_status=in_cicd`,
+      `/api/projects/${selectedProjectId}/test-cases?automation_status=in_cicd`,
     )
       .then((r) => (r.ok ? r.json() : []))
-      .then((data: unknown[]) =>
-        setCicdCount(Array.isArray(data) ? data.length : 0),
+      .then((data: Array<{ suite_id: string }>) =>
+        setCicdCount(
+          data.filter((tc) => selectedSuiteIds.includes(tc.suite_id)).length,
+        ),
       )
       .catch(() => setCicdCount(null))
       .finally(() => setLoadingCount(false));
-  }, [selectedSuiteId, selectedProjectId]);
+  }, [selectedSuiteIds, selectedProjectId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleSuiteChange = (value: string[]) => {
+    if (value.includes(ALL_SUITES)) {
+      // Toggle all
+      setSelectedSuiteIds(
+        selectedSuiteIds.length === suites.length
+          ? []
+          : suites.map((s) => s.id),
+      );
+    } else {
+      setSelectedSuiteIds(value);
+    }
+  };
 
   const handleTrigger = async () => {
-    if (!activeIntegration || !selectedSuiteId) return;
+    if (!activeIntegration || selectedSuiteIds.length === 0) return;
     setTriggering(true);
     setError(null);
     try {
@@ -137,7 +156,7 @@ export default function TriggerAutomatedRunDialog({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           integration_id: activeIntegration.id,
-          suite_id: selectedSuiteId,
+          suite_ids: selectedSuiteIds,
           environment,
           tag_filter: tagFilter,
         }),
@@ -158,8 +177,20 @@ export default function TriggerAutomatedRunDialog({
   };
 
   const canTrigger = Boolean(
-    activeIntegration && selectedSuiteId && (cicdCount ?? 0) > 0 && !triggering,
+    activeIntegration &&
+    selectedSuiteIds.length > 0 &&
+    (cicdCount ?? 0) > 0 &&
+    !triggering,
   );
+
+  const suiteSelectLabel =
+    selectedSuiteIds.length === 0
+      ? ""
+      : selectedSuiteIds.length === suites.length
+        ? "All Suites"
+        : selectedSuiteIds.length === 1
+          ? (suites.find((s) => s.id === selectedSuiteIds[0])?.name ?? "")
+          : `${selectedSuiteIds.length} suites selected`;
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
@@ -204,16 +235,31 @@ export default function TriggerAutomatedRunDialog({
 
             {!preselectedSuiteId && (
               <FormControl fullWidth size="small" sx={{ mb: 2 }}>
-                <InputLabel>Suite</InputLabel>
+                <InputLabel>Suites</InputLabel>
                 <Select
-                  value={selectedSuiteId}
-                  label="Suite"
-                  onChange={(e) => setSelectedSuiteId(e.target.value)}
+                  multiple
+                  value={selectedSuiteIds}
+                  label="Suites"
+                  onChange={(e) =>
+                    handleSuiteChange(e.target.value as string[])
+                  }
                   disabled={!activeIntegration}
+                  renderValue={() => suiteSelectLabel}
                 >
+                  <MenuItem value={ALL_SUITES}>
+                    <Checkbox
+                      checked={selectedSuiteIds.length === suites.length}
+                      indeterminate={
+                        selectedSuiteIds.length > 0 &&
+                        selectedSuiteIds.length < suites.length
+                      }
+                    />
+                    <ListItemText primary="All Suites" />
+                  </MenuItem>
                   {suites.map((s) => (
                     <MenuItem key={s.id} value={s.id}>
-                      {s.name} ({s.prefix})
+                      <Checkbox checked={selectedSuiteIds.includes(s.id)} />
+                      <ListItemText primary={`${s.name} (${s.prefix})`} />
                     </MenuItem>
                   ))}
                 </Select>
@@ -252,7 +298,7 @@ export default function TriggerAutomatedRunDialog({
               </Select>
             </FormControl>
 
-            {selectedSuiteId && (
+            {selectedSuiteIds.length > 0 && (
               <Box
                 sx={{
                   p: 1.5,
@@ -289,7 +335,7 @@ export default function TriggerAutomatedRunDialog({
                     ? "Counting automated test cases..."
                     : (cicdCount ?? 0) > 0
                       ? `in_cicd test case${cicdCount !== 1 ? "s" : ""} will be included`
-                      : "No in_cicd test cases found in this suite"}
+                      : "No in_cicd test cases found in selected suites"}
                 </Typography>
               </Box>
             )}
