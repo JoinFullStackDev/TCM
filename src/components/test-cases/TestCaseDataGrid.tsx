@@ -164,6 +164,10 @@ export default function TestCaseDataGrid({
           canWrite={canWrite}
           selectedRunId={selectedRunId}
           testCaseId={row.id}
+          title={row.title ?? undefined}
+          description={row.description}
+          precondition={row.precondition}
+          displayId={row.display_id ?? undefined}
           onStatusChange={onStepStatusChange ? (stepId, platform, status) => onStepStatusChange(row.id, stepId, platform, status) : undefined}
           onStepsUpdate={onStepsUpdate}
         />
@@ -173,15 +177,8 @@ export default function TestCaseDataGrid({
   );
 
   const getDetailPanelHeight = useCallback(
-    (params: GridRowParams<TestCaseRow>) => {
-      const stepCount = params.row.test_steps?.length ?? 0;
-      if (stepCount === 0 && !canWrite) return 0;
-      const headerRow = 44;
-      const addButtonRow = canWrite ? 44 : 0;
-      const contentHeight = headerRow + Math.max(stepCount, 0) * 44 + addButtonRow;
-      return Math.max(contentHeight, 200);
-    },
-    [canWrite],
+    () => 'auto' as const,
+    [],
   );
 
   const processRowUpdate = useCallback(

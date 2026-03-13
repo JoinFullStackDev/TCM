@@ -61,6 +61,10 @@ interface StepDetailPanelProps {
   canWrite: boolean;
   selectedRunId?: string | null;
   testCaseId: string;
+  title?: string;
+  description?: string | null;
+  precondition?: string | null;
+  displayId?: string;
   onStatusChange?: (stepId: string, platform: Platform, status: ExecutionStatus) => void;
   onStepsUpdate?: (testCaseId: string, steps: StepData[]) => Promise<void>;
 }
@@ -135,7 +139,6 @@ function SortableStepRow({
     field: EditingField['field'],
     value: string | null,
     isEditing: boolean,
-    truncateAt: number,
   ) => {
     if (canWrite && isEditing) {
       return (
@@ -169,12 +172,12 @@ function SortableStepRow({
           cursor: canWrite ? 'text' : 'default',
           display: 'block',
           minHeight: 20,
+          whiteSpace: 'pre-wrap',
+          wordBreak: 'break-word',
           '&:hover': canWrite ? { bgcolor: alpha(palette.primary.main, 0.06), borderRadius: '4px', px: 0.5, mx: -0.5 } : {},
         }}
       >
-        {display
-          ? display.length > truncateAt ? display.slice(0, truncateAt) + '...' : display
-          : '—'}
+        {display || '—'}
       </Typography>
     );
   };
@@ -223,15 +226,15 @@ function SortableStepRow({
       </TableCell>
 
       <TableCell sx={{ width: 280, wordBreak: 'break-word', whiteSpace: 'normal' }}>
-        {renderTextCell('description', step.description, isEditingDesc, 120)}
+        {renderTextCell('description', step.description, isEditingDesc)}
       </TableCell>
 
       <TableCell sx={{ width: 180, wordBreak: 'break-word', whiteSpace: 'normal' }}>
-        {renderTextCell('test_data', step.test_data, isEditingData, 80)}
+        {renderTextCell('test_data', step.test_data, isEditingData)}
       </TableCell>
 
       <TableCell sx={{ width: 180, wordBreak: 'break-word', whiteSpace: 'normal' }}>
-        {renderTextCell('expected_result', step.expected_result, isEditingExpected, 80)}
+        {renderTextCell('expected_result', step.expected_result, isEditingExpected)}
       </TableCell>
 
       {canWrite && (
@@ -310,6 +313,10 @@ export default function StepDetailPanel({
   canWrite,
   selectedRunId,
   testCaseId,
+  title,
+  description,
+  precondition,
+  displayId,
   onStatusChange,
   onStepsUpdate,
 }: StepDetailPanelProps) {
@@ -488,6 +495,63 @@ export default function StepDetailPanel({
 
   return (
     <Box sx={{ px: 3, py: 1.5, bgcolor: palette.background.default, borderTop: `1px solid ${alpha(palette.neutral.main, 0.15)}`, borderBottom: `1px solid ${alpha(palette.neutral.main, 0.15)}`, height: '100%', overflow: 'auto' }}>
+      {(title || description || precondition) && (
+        <Box
+          sx={{
+            mb: 1.5,
+            p: 1.5,
+            borderRadius: '6px',
+            bgcolor: alpha(palette.background.surface2, 0.6),
+            border: `1px solid ${alpha(palette.neutral.main, 0.12)}`,
+          }}
+        >
+          {title && (
+            <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, mb: (description || precondition) ? 1 : 0 }}>
+              {displayId && (
+                <Chip
+                  label={displayId}
+                  size="small"
+                  variant="outlined"
+                  sx={{ fontFamily: 'monospace', fontWeight: 600, fontSize: '0.65rem', height: 20, flexShrink: 0, mt: 0.25 }}
+                />
+              )}
+              <Typography
+                variant="body2"
+                sx={{ fontWeight: 700, whiteSpace: 'pre-wrap', wordBreak: 'break-word', lineHeight: 1.5 }}
+              >
+                {title}
+              </Typography>
+            </Box>
+          )}
+          {description && (
+            <Box sx={{ mb: precondition ? 1 : 0 }}>
+              <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Description
+              </Typography>
+              <Typography
+                variant="caption"
+                sx={{ display: 'block', mt: 0.25, fontSize: '0.75rem', color: 'text.primary', whiteSpace: 'pre-wrap', wordBreak: 'break-word', lineHeight: 1.5 }}
+              >
+                {description}
+              </Typography>
+            </Box>
+          )}
+          {precondition && (
+            <Box>
+              <Typography variant="caption" sx={{ fontWeight: 600, color: palette.warning.main, fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Precondition
+              </Typography>
+              <Typography
+                variant="caption"
+                sx={{ display: 'block', mt: 0.25, fontSize: '0.75rem', color: 'text.primary', whiteSpace: 'pre-wrap', wordBreak: 'break-word', lineHeight: 1.5 }}
+              >
+                {precondition}
+              </Typography>
+            </Box>
+          )}
+        </Box>
+      )}
+
       {canWrite && (
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', mb: 0.5, minHeight: 20 }}>
           {saveStatus === 'saving' && (
