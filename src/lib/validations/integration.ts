@@ -1,5 +1,10 @@
 import { z } from 'zod';
 
+export const gitLabCIConfigSchema = z.object({
+  trigger_token: z.string().min(1, 'Trigger token is required'),
+  trigger_url: z.string().url('Must be a valid URL'),
+});
+
 const slackConfigSchema = z.object({
   webhook_url: z
     .string()
@@ -11,13 +16,22 @@ const slackConfigSchema = z.object({
   notify_on: z.enum(['all', 'failures_only']).optional().default('all'),
 });
 
-export const createIntegrationSchema = z.object({
-  project_id: z.string().uuid(),
-  suite_id: z.string().uuid().nullable().optional(),
-  type: z.enum(['slack', 'gitlab']),
-  config: slackConfigSchema,
-  is_active: z.boolean().optional().default(true),
-});
+export const createIntegrationSchema = z.discriminatedUnion('type', [
+  z.object({
+    type: z.literal('slack'),
+    project_id: z.string().uuid(),
+    suite_id: z.string().uuid().nullable().optional(),
+    config: slackConfigSchema,
+    is_active: z.boolean().optional().default(true),
+  }),
+  z.object({
+    type: z.literal('gitlab'),
+    project_id: z.string().uuid(),
+    suite_id: z.string().uuid().nullable().optional(),
+    config: gitLabCIConfigSchema,
+    is_active: z.boolean().optional().default(true),
+  }),
+]);
 
 export const updateIntegrationSchema = z.object({
   config: slackConfigSchema.partial().optional(),
