@@ -63,6 +63,8 @@ interface RunDetail {
   due_date: string | null;
   project_id: string;
   suite_id: string | null;
+  source: string;
+  gitlab_pipeline_url: string | null;
   projects: { id: string; name: string } | null;
   suites: { id: string; name: string; prefix: string } | null;
   assignee: { id: string; full_name: string; avatar_url: string | null } | null;
@@ -226,6 +228,22 @@ export default function RunDetailPage() {
         <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: 2 }}>
           {run.projects && <Chip label={run.projects.name} size="small" variant="outlined" />}
           {run.suites && <Chip label={`${run.suites.prefix} - ${run.suites.name}`} size="small" variant="outlined" />}
+          {run.source === 'ci_trigger' && run.gitlab_pipeline_url && (
+            <Chip
+              icon={<OpenInNewIcon sx={{ fontSize: 14 }} />}
+              label="View Pipeline"
+              size="small"
+              component="a"
+              href={run.gitlab_pipeline_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              clickable
+              sx={{
+                bgcolor: alpha(palette.info.main, 0.12),
+                color: palette.info.main,
+              }}
+            />
+          )}
           {run.target_version && <Chip label={`v${run.target_version}`} size="small" variant="outlined" />}
           {canWrite ? (
             <Chip

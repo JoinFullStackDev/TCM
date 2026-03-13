@@ -27,7 +27,7 @@ import PageTransition from '@/components/animations/PageTransition';
 import WebhookEventLog from '@/components/webhooks/WebhookEventLog';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { palette } from '@/theme/palette';
-import type { Project, Suite, Integration, SlackConfig } from '@/types/database';
+import type { Project, Suite, Integration, SlackConfig, GitLabCIConfig } from '@/types/database';
 
 const DEFAULT_SLACK_CONFIG: SlackConfig = {
   webhook_url: '',
@@ -61,6 +61,11 @@ export default function IntegrationsPage() {
     message: '',
     severity: 'success',
   });
+
+  const DEFAULT_GITLAB_CONFIG: GitLabCIConfig = { trigger_token: '', trigger_url: '' };
+  const [showGitLabForm, setShowGitLabForm] = useState(false);
+  const [gitlabFormConfig, setGitlabFormConfig] = useState<GitLabCIConfig>({ ...DEFAULT_GITLAB_CONFIG });
+  const [savingGitlab, setSavingGitlab] = useState(false);
 
   const canView = can('view_webhooks');
   const canManage = can('manage_integrations');
@@ -217,12 +222,43 @@ export default function IntegrationsPage() {
     );
   }
 
+  const handleSaveGitLabIntegration = async () => {
+    if (!gitlabFormConfig.trigger_token || !gitlabFormConfig.trigger_url || !selectedProjectId) return;
+    setSavingGitlab(true);
+    try {
+      const res = await fetch('/api/integrations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project_id: selectedProjectId,
+          suite_id: null,
+          type: 'gitlab',
+          config: gitlabFormConfig,
+        }),
+      });
+      if (res.ok) {
+        showMessage('GitLab CI integration saved', 'success');
+        setShowGitLabForm(false);
+        setGitlabFormConfig({ ...DEFAULT_GITLAB_CONFIG });
+        fetchIntegrations(selectedProjectId);
+      } else {
+        const data = await res.json();
+        showMessage(data.error || 'Failed to save integration', 'error');
+      }
+    } catch {
+      showMessage('Failed to reach server', 'error');
+    } finally {
+      setSavingGitlab(false);
+    }
+  };
+
   const webhookUrl =
     typeof window !== 'undefined'
       ? `${window.location.origin}/api/webhooks/playwright`
       : '/api/webhooks/playwright';
 
   const slackIntegrations = integrations.filter((i) => i.type === 'slack');
+  const gitlabIntegrations = integrations.filter((i) => i.type === 'gitlab');
 
   return (
     <PageTransition>
@@ -658,6 +694,229 @@ export default function IntegrationsPage() {
                           Add Slack Integration
                         </Button>
                       </Box>
+                    )}
+                  </>
+                )}
+              </>
+            )}
+          </Box>
+        )}
+
+        {/* ─── GitLab CI Section ─── */}
+        {canManage && (
+          <Box
+            sx={{
+              p: 3,
+              mb: 3,
+              borderRadius: 2,
+              bgcolor: 'background.paper',
+              border: `1px solid ${palette.divider}`,
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+              <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                GitLab CI
+              </Typography>
+              <Chip
+                label="S2"
+                size="small"
+                sx={{
+                  height: 20,
+                  fontSize: '0.6rem',
+                  fontWeight: 700,
+                  bgcolor: alpha(palette.info.main, 0.15),
+                  color: palette.info.main,
+                }}
+              />
+            </Box>
+            <Typography variant="body2" sx={{ color: 'text.secondary', mb: 3 }}>
+              Configure a GitLab CI pipeline trigger to run automated Playwright tests directly from TCM.
+            </Typography>
+
+            {/* Project Selector (shared with Slack section) */}
+            {!selectedProjectId && (
+              <FormControl fullWidth size="small" sx={{ mb: 3 }}>
+                <InputLabel>Select Project</InputLabel>
+                <Select
+                  value={selectedProjectId}
+                  label="Select Project"
+                  onChange={(e) => setSelectedProjectId(e.target.value)}
+                >
+                  {projects.map((p) => (
+                    <MenuItem key={p.id} value={p.id}>
+                      {p.name}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            )}
+
+            {selectedProjectId && (
+              <>
+                {integrationsLoading ? (
+                  <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}>
+                    <CircularProgress size={24} />
+                  </Box>
+                ) : (
+                  <>
+                    {gitlabIntegrations.map((integration) => {
+                      const cfg = integration.config as GitLabCIConfig;
+                      return (
+                        <Box
+                          key={integration.id}
+                          sx={{
+                            p: 2,
+                            mb: 2,
+                            borderRadius: 1.5,
+                            bgcolor: palette.background.surface2,
+                            border: `1px solid ${palette.divider}`,
+                          }}
+                        >
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                            <Typography variant="body2" sx={{ fontWeight: 600, flex: 1 }}>
+                              GitLab Pipeline Trigger
+                            </Typography>
+                            <Chip
+                              label={integration.is_active ? 'Active' : 'Disabled'}
+                              size="small"
+                              sx={{
+                                height: 20,
+                                fontSize: '0.6rem',
+                                bgcolor: alpha(
+                                  integration.is_active ? palette.success.main : palette.neutral.main,
+                                  0.15,
+                                ),
+                                color: integration.is_active ? palette.success.main : 'text.secondary',
+                              }}
+                            />
+                          </Box>
+                          <Typography
+                            variant="caption"
+                            sx={{
+                              fontFamily: 'monospace',
+                              fontSize: '0.7rem',
+                              color: 'text.secondary',
+                              display: 'block',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                              mb: 1.5,
+                            }}
+                          >
+                            {cfg.trigger_url}
+                          </Typography>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Switch
+                              size="small"
+                              checked={integration.is_active}
+                              onChange={() => handleToggleActive(integration)}
+                            />
+                            <Typography variant="caption">
+                              {integration.is_active ? 'Active' : 'Disabled'}
+                            </Typography>
+                            <Box sx={{ flex: 1 }} />
+                            <Tooltip title="Delete integration">
+                              <IconButton
+                                size="small"
+                                onClick={() => handleDeleteIntegration(integration.id)}
+                                sx={{ color: palette.error.main }}
+                              >
+                                <DeleteOutlineIcon sx={{ fontSize: 16 }} />
+                              </IconButton>
+                            </Tooltip>
+                          </Box>
+                        </Box>
+                      );
+                    })}
+
+                    {gitlabIntegrations.length === 0 && !showGitLabForm && (
+                      <Typography
+                        variant="body2"
+                        sx={{ color: 'text.disabled', textAlign: 'center', py: 2 }}
+                      >
+                        No GitLab CI integration configured for this project.
+                      </Typography>
+                    )}
+
+                    {showGitLabForm ? (
+                      <Box
+                        sx={{
+                          p: 2.5,
+                          borderRadius: 1.5,
+                          bgcolor: palette.background.surface2,
+                          border: `1px solid ${palette.divider}`,
+                          mt: 2,
+                        }}
+                      >
+                        <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 2 }}>
+                          New GitLab CI Integration
+                        </Typography>
+
+                        <TextField
+                          fullWidth
+                          size="small"
+                          type="password"
+                          label="Trigger Token"
+                          placeholder="glptt-xxxx"
+                          value={gitlabFormConfig.trigger_token}
+                          onChange={(e) =>
+                            setGitlabFormConfig((c) => ({ ...c, trigger_token: e.target.value }))
+                          }
+                          sx={{ mb: 2 }}
+                        />
+
+                        <TextField
+                          fullWidth
+                          size="small"
+                          label="Trigger URL"
+                          placeholder="https://gitlab.com/api/v4/projects/123/trigger/pipeline"
+                          value={gitlabFormConfig.trigger_url}
+                          onChange={(e) =>
+                            setGitlabFormConfig((c) => ({ ...c, trigger_url: e.target.value }))
+                          }
+                          sx={{ mb: 3 }}
+                        />
+
+                        <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            color="inherit"
+                            onClick={() => {
+                              setShowGitLabForm(false);
+                              setGitlabFormConfig({ ...DEFAULT_GITLAB_CONFIG });
+                            }}
+                          >
+                            Cancel
+                          </Button>
+                          <Button
+                            size="small"
+                            variant="contained"
+                            onClick={handleSaveGitLabIntegration}
+                            disabled={
+                              !gitlabFormConfig.trigger_token ||
+                              !gitlabFormConfig.trigger_url ||
+                              savingGitlab
+                            }
+                            startIcon={savingGitlab ? <CircularProgress size={14} /> : undefined}
+                          >
+                            Save
+                          </Button>
+                        </Box>
+                      </Box>
+                    ) : (
+                      gitlabIntegrations.length === 0 && (
+                        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            startIcon={<AddIcon />}
+                            onClick={() => setShowGitLabForm(true)}
+                          >
+                            Add GitLab CI Integration
+                          </Button>
+                        </Box>
+                      )
                     )}
                   </>
                 )}
