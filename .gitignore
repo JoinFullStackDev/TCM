@@ -47,3 +47,6 @@ src/data/knowledge-base.json
 # playwright auth state (contains session cookies — never commit)
 playwright/.auth/
 .playwright-mcp/
+
+# supabase CLI local metadata
+supabase/.temp/

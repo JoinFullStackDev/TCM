@@ -27,6 +27,7 @@ export const playwrightWebhookSchema = z.object({
       ci_url: z.string().url().optional(),
       pipeline_id: z.string().optional(),
       environment: z.string().optional(),
+      test_run_id: z.string().uuid().optional(),
     })
     .passthrough()
     .optional(),

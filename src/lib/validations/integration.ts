@@ -34,7 +34,10 @@ export const createIntegrationSchema = z.discriminatedUnion('type', [
 ]);
 
 export const updateIntegrationSchema = z.object({
-  config: slackConfigSchema.partial().optional(),
+  config: z.union([
+    slackConfigSchema.partial(),
+    gitLabCIConfigSchema.partial(),
+  ]).optional(),
   is_active: z.boolean().optional(),
   suite_id: z.string().uuid().nullable().optional(),
 });
@@ -49,3 +52,4 @@ export const testSlackSchema = z.object({
 export type CreateIntegrationInput = z.infer<typeof createIntegrationSchema>;
 export type UpdateIntegrationInput = z.infer<typeof updateIntegrationSchema>;
 export type SlackConfigInput = z.infer<typeof slackConfigSchema>;
+export type GitLabCIConfigInput = z.infer<typeof gitLabCIConfigSchema>;
