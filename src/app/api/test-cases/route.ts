@@ -13,13 +13,19 @@ export async function GET(request: Request) {
   const includeSteps = searchParams.get('include_steps') === 'true';
   const runId = searchParams.get('run_id');
 
+  const search = searchParams.get('search')?.trim();
+
   let query = supabase
     .from('test_cases')
-    .select('*')
+    .select('*, suite:suites(project_id)')
     .order('position', { ascending: true });
 
   if (suiteId) {
     query = query.eq('suite_id', suiteId);
+  }
+
+  if (search) {
+    query = query.or(`display_id.ilike.%${search}%,title.ilike.%${search}%`);
   }
 
   const { data, error } = await query;

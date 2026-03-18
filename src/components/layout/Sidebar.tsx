@@ -23,6 +23,7 @@ import AssessmentOutlinedIcon from '@mui/icons-material/AssessmentOutlined';
 import PeopleOutlineIcon from '@mui/icons-material/PeopleOutline';
 import WebhookOutlinedIcon from '@mui/icons-material/WebhookOutlined';
 import MenuBookOutlinedIcon from '@mui/icons-material/MenuBookOutlined';
+import AccountCircleOutlinedIcon from '@mui/icons-material/AccountCircleOutlined';
 import FiberManualRecordIcon from '@mui/icons-material/FiberManualRecord';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
@@ -380,26 +381,35 @@ export default function Sidebar({ collapsed }: { collapsed: boolean }) {
 
       <Divider />
 
-      {/* Knowledge Base — visible to all roles */}
+      {/* Knowledge Base & Profile — visible to all roles */}
       <List sx={{ px: 1, py: 1 }}>
         {(() => {
           const kbHref = '/knowledge-base';
           const kbActive = pathname.startsWith(kbHref);
-          return (
-            <Tooltip title={collapsed ? 'Knowledge Base' : ''} placement="right">
+          const profileHref = '/profile';
+          const profileActive = pathname.startsWith(profileHref);
+
+          const bottomItems = [
+            { href: kbHref, active: kbActive, label: 'Knowledge Base', icon: <MenuBookOutlinedIcon /> },
+            { href: profileHref, active: profileActive, label: 'My Profile', icon: <AccountCircleOutlinedIcon /> },
+          ];
+
+          return bottomItems.map((item) => (
+            <Tooltip key={item.href} title={collapsed ? item.label : ''} placement="right">
               <ListItemButton
                 component={Link}
-                href={kbHref}
-                selected={kbActive}
+                href={item.href}
+                selected={item.active}
                 sx={{
                   minHeight: 40,
+                  mb: 0.5,
                   px: collapsed ? 1.5 : 2,
                   justifyContent: collapsed ? 'center' : 'flex-start',
                   position: 'relative',
                   overflow: 'hidden',
                 }}
               >
-                {kbActive && (
+                {item.active && (
                   <motion.div
                     layoutId="sidebar-indicator"
                     style={{
@@ -417,24 +427,24 @@ export default function Sidebar({ collapsed }: { collapsed: boolean }) {
                 <ListItemIcon
                   sx={{
                     minWidth: collapsed ? 0 : 36,
-                    color: kbActive ? 'primary.main' : 'text.secondary',
+                    color: item.active ? 'primary.main' : 'text.secondary',
                     justifyContent: 'center',
                   }}
                 >
-                  <MenuBookOutlinedIcon />
+                  {item.icon}
                 </ListItemIcon>
                 {!collapsed && (
                   <ListItemText
-                    primary="Knowledge Base"
+                    primary={item.label}
                     primaryTypographyProps={{
                       fontSize: '0.8125rem',
-                      fontWeight: kbActive ? 600 : 400,
+                      fontWeight: item.active ? 600 : 400,
                     }}
                   />
                 )}
               </ListItemButton>
             </Tooltip>
-          );
+          ));
         })()}
       </List>
 

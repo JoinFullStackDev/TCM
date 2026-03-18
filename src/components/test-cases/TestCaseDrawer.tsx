@@ -19,6 +19,7 @@ import { alpha } from '@mui/material/styles';
 import { palette } from '@/theme/palette';
 import StepEditor, { type StepData } from './StepEditor';
 import BugLinksList from './BugLinksList';
+import TestCaseNotes from '@/components/notes/TestCaseNotes';
 import type {
   TestCase,
   AutomationStatus,
@@ -511,6 +512,21 @@ export default function TestCaseDrawer({
               <>
                 <Divider />
                 <BugLinksList testCaseId={testCaseId} readOnly={readOnly} />
+              </>
+            )}
+
+            {/* Notes */}
+            {!createMode && testCaseId && (
+              <>
+                <Divider />
+                <Box>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                      Notes
+                    </Typography>
+                  </Box>
+                  <TestCaseNotes testCaseId={testCaseId} />
+                </Box>
               </>
             )}
 

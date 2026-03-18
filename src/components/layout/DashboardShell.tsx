@@ -4,6 +4,7 @@ import { useState, type ReactNode } from 'react';
 import Box from '@mui/material/Box';
 import Sidebar from './Sidebar';
 import TopBar from './TopBar';
+import QuickNotesFab from '@/components/notes/QuickNotesFab';
 
 export default function DashboardShell({ children }: { children: ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
@@ -24,6 +25,7 @@ export default function DashboardShell({ children }: { children: ReactNode }) {
           {children}
         </Box>
       </Box>
+      <QuickNotesFab />
     </Box>
   );
 }

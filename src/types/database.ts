@@ -1,4 +1,5 @@
 export type UserRole = 'admin' | 'qa_engineer' | 'sdet' | 'viewer';
+export type NoteVisibility = 'private' | 'team';
 export type TestCaseType = 'functional' | 'performance';
 export type AutomationStatus = 'not_automated' | 'scripted' | 'in_cicd' | 'out_of_sync';
 export type ExecutionStatus = 'not_run' | 'pass' | 'fail' | 'blocked' | 'skip';
@@ -402,6 +403,51 @@ export interface DashboardAdminSection {
   system_stats: DashboardSystemStats;
   webhook_health: DashboardWebhookHealth;
   import_activity: DashboardImportActivity[];
+}
+
+export interface Note {
+  id: string;
+  author_id: string;
+  title: string | null;
+  content: string;
+  content_plain: string | null;
+  summary: string | null;
+  visibility: NoteVisibility;
+  meeting_url: string | null;
+  is_pinned: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface NoteAttachment {
+  id: string;
+  note_id: string;
+  storage_path: string;
+  file_name: string;
+  file_size: number | null;
+  mime_type: string | null;
+  created_at: string;
+}
+
+export interface NoteTestCaseLink {
+  id: string;
+  note_id: string;
+  test_case_id: string;
+  created_at: string;
+}
+
+export interface LinkedTestCase {
+  id: string;
+  display_id: string;
+  title: string;
+  suite_id: string;
+  project_id: string;
+}
+
+export interface NoteWithAttachments extends Note {
+  note_attachments: NoteAttachment[];
+  author?: Pick<Profile, 'id' | 'full_name' | 'avatar_url' | 'email'>;
+  linked_test_cases?: LinkedTestCase[];
 }
 
 export interface DashboardSummary {
