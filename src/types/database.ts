@@ -112,6 +112,7 @@ export interface TestRun {
   is_automated: boolean;
   source: string;
   assignee_id: string | null;
+  gitlab_pipeline_url: string | null;
   created_by: string;
   created_at: string;
   updated_at: string;
@@ -242,12 +243,17 @@ export interface SlackConfig {
   notify_on: 'all' | 'failures_only';
 }
 
+export interface GitLabCIConfig {
+  trigger_token: string;
+  trigger_url: string;
+}
+
 export interface Integration {
   id: string;
   project_id: string;
   suite_id: string | null;
   type: IntegrationType;
-  config: SlackConfig | Record<string, unknown>;
+  config: SlackConfig | GitLabCIConfig | Record<string, unknown>;
   is_active: boolean;
   created_by: string;
   created_at: string;

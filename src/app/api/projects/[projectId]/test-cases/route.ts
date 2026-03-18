@@ -14,6 +14,8 @@ export async function GET(request: Request, context: RouteContext) {
   const includeStatus = searchParams.get('include_status') === 'true';
   const includeSteps = searchParams.get('include_steps') === 'true';
   const runId = searchParams.get('run_id');
+  const filterSuiteId = searchParams.get('suite_id');
+  const filterAutomationStatus = searchParams.get('automation_status');
 
   const { data: project, error: projError } = await supabase
     .from('projects')
@@ -31,11 +33,21 @@ export async function GET(request: Request, context: RouteContext) {
 
   if (suitesError) return serverError(suitesError.message);
 
-  const { data: testCases, error: tcError } = await supabase
+  const suiteIds = filterSuiteId
+    ? [(suites ?? []).find((s) => s.id === filterSuiteId)?.id].filter(Boolean) as string[]
+    : (suites ?? []).map((s) => s.id);
+
+  let tcQuery = supabase
     .from('test_cases')
     .select('*')
-    .in('suite_id', (suites ?? []).map((s) => s.id))
+    .in('suite_id', suiteIds)
     .order('position', { ascending: true });
+
+  if (filterAutomationStatus) {
+    tcQuery = tcQuery.eq('automation_status', filterAutomationStatus);
+  }
+
+  const { data: testCases, error: tcError } = await tcQuery;
 
   if (tcError) return serverError(tcError.message);
 

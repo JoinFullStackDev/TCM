@@ -11,7 +11,8 @@
     "dev": "node scripts/build-knowledge-base.mjs && next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "playwright:auth": "node scripts/save-playwright-auth.mjs"
   },
   "keywords": [],
   "author": "",
@@ -54,6 +55,7 @@
     "@types/react-dom": "^19.2.3",
     "eslint": "^9.39.3",
     "eslint-config-next": "^16.1.6",
+    "playwright": "^1.58.2",
     "typescript": "^5.9.3"
   }
 }

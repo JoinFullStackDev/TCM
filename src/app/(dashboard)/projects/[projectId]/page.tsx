@@ -21,6 +21,7 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import MergeOutlinedIcon from '@mui/icons-material/CallMergeOutlined';
+import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import ViewListOutlinedIcon from '@mui/icons-material/ViewListOutlined';
 import GridViewOutlinedIcon from '@mui/icons-material/GridViewOutlined';
 import TableChartOutlinedIcon from '@mui/icons-material/TableChartOutlined';
@@ -41,8 +42,9 @@ import TestCaseDrawer from '@/components/test-cases/TestCaseDrawer';
 import BulkEditToolbar, { type BulkEditUpdates } from '@/components/test-cases/BulkEditToolbar';
 import GridFilterBar, { type FilterValues } from '@/components/test-cases/GridFilterBar';
 import GridToolbar, { type SaveStatus, type TestRunOption } from '@/components/test-cases/GridToolbar';
+import TriggerAutomatedRunDialog from '@/components/test-runs/TriggerAutomatedRunDialog';
 import { useAuth } from '@/components/providers/AuthProvider';
-import type { Project, Suite, TestCase, ExecutionStatus, Platform } from '@/types/database';
+import type { Project, Suite, TestCase, ExecutionStatus, Platform, Integration } from '@/types/database';
 
 interface SuiteWithCount extends Suite {
   test_case_count: number;
@@ -110,6 +112,10 @@ export default function ProjectDetailPage() {
 
   const canWrite = can('write');
   const canDelete = can('delete');
+  const canManage = can('manage_integrations');
+
+  const [gitlabIntegration, setGitlabIntegration] = useState<Integration | null>(null);
+  const [triggerSuiteId, setTriggerSuiteId] = useState<string | null>(null);
 
   const existingGroups = useMemo(() => {
     const groups = new Set<string>();
@@ -166,6 +172,18 @@ export default function ProjectDetailPage() {
     }
   }, [projectId]);
 
+  const fetchGitlabIntegration = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/integrations?project_id=${projectId}`);
+      if (res.ok) {
+        const data: Integration[] = await res.json();
+        setGitlabIntegration(data.find((i) => i.type === 'gitlab' && i.is_active) ?? null);
+      }
+    } catch {
+      // ignore
+    }
+  }, [projectId]);
+
   const fetchRuns = useCallback(async () => {
     try {
       const res = await fetch(`/api/test-runs?project_id=${projectId}`);
@@ -202,9 +220,9 @@ export default function ProjectDetailPage() {
 
   useEffect(() => {
     if (!authLoading) {
-      Promise.all([fetchProject(), fetchSuites()]).finally(() => setLoading(false));
+      Promise.all([fetchProject(), fetchSuites(), fetchGitlabIntegration()]).finally(() => setLoading(false));
     }
-  }, [authLoading, fetchProject, fetchSuites]);
+  }, [authLoading, fetchProject, fetchSuites, fetchGitlabIntegration]);
 
   useEffect(() => {
     if (viewMode === 'grid') {
@@ -649,6 +667,19 @@ export default function ProjectDetailPage() {
         )}
 
         <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={handleMenuClose}>
+          {canManage && gitlabIntegration && (
+            <MenuItem
+              onClick={() => {
+                if (menuSuite) setTriggerSuiteId(menuSuite.id);
+                handleMenuClose();
+              }}
+            >
+              <ListItemIcon>
+                <PlayArrowIcon fontSize="small" />
+              </ListItemIcon>
+              <ListItemText>Run Automated Tests</ListItemText>
+            </MenuItem>
+          )}
           <MenuItem
             onClick={() => {
               if (menuSuite) {
@@ -749,6 +780,15 @@ export default function ProjectDetailPage() {
             setDeleteSuiteId(null);
           }}
         />
+
+        {triggerSuiteId && (
+          <TriggerAutomatedRunDialog
+            open={Boolean(triggerSuiteId)}
+            projectId={projectId}
+            preselectedSuiteId={triggerSuiteId}
+            onClose={() => setTriggerSuiteId(null)}
+          />
+        )}
 
         {viewMode === 'grid' && (
           <TestCaseDrawer
