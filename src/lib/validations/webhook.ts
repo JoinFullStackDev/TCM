@@ -22,12 +22,12 @@ export const playwrightWebhookSchema = z.object({
   results: z.array(webhookResultSchema).min(1, 'At least one result is required'),
   metadata: z
     .object({
-      commit_hash: z.string().optional(),
+      commit_hash: z.string().nullish(),
       branch: z.string().optional(),
       ci_url: z.string().url().optional(),
       pipeline_id: z.string().optional(),
       environment: z.string().optional(),
-      test_run_id: z.string().uuid().optional(),
+      test_run_id: z.string().uuid().nullish(),
     })
     .passthrough()
     .optional(),
