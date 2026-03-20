@@ -112,7 +112,7 @@ export async function processPlaywrightWebhook(
   }
 
   // If test_run_id is provided, update the existing CI-triggered run
-  const ciRunId = metadata?.test_run_id as string | undefined;
+  const ciRunId = metadata?.test_run_id ?? undefined;
   if (ciRunId) {
     const { data: existingRun, error: runFetchErr } = await supabase
       .from('test_runs')

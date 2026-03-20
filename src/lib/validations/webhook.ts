@@ -23,10 +23,10 @@ export const playwrightWebhookSchema = z.object({
   metadata: z
     .object({
       commit_hash: z.string().nullish(),
-      branch: z.string().optional(),
-      ci_url: z.string().url().optional(),
-      pipeline_id: z.string().optional(),
-      environment: z.string().optional(),
+      branch: z.string().nullish(),
+      ci_url: z.string().url().nullish(),
+      pipeline_id: z.string().nullish(),
+      environment: z.string().nullish(),
       test_run_id: z.string().uuid().nullish(),
     })
     .passthrough()
