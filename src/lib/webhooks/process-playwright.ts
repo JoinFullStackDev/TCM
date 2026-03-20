@@ -181,7 +181,7 @@ export async function processPlaywrightWebhook(
       is_automated: true,
       source: 'playwright_webhook',
       completed_at: new Date().toISOString(),
-      created_by: '00000000-0000-0000-0000-000000000000',
+      created_by: null,
     })
     .select()
     .single();
