@@ -113,6 +113,6 @@ export async function POST(request: Request) {
       status: result.success ? 'accepted' : 'failed',
       error: result.error ?? null,
     },
-    { status: 202 },
+    { status: result.success ? 202 : 500 },
   );
 }
