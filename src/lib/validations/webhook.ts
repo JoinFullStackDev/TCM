@@ -20,6 +20,7 @@ export const playwrightWebhookSchema = z.object({
   event_type: z.enum(['test_run_completed']).default('test_run_completed'),
   run_name: z.string().max(200).optional(),
   results: z.array(webhookResultSchema).min(1, 'At least one result is required'),
+  pipeline_url: z.string().url().nullish(),
   metadata: z
     .object({
       commit_hash: z.string().nullish(),

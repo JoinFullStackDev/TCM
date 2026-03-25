@@ -228,7 +228,7 @@ export default function RunDetailPage() {
         <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: 2 }}>
           {run.projects && <Chip label={run.projects.name} size="small" variant="outlined" />}
           {run.suites && <Chip label={`${run.suites.prefix} - ${run.suites.name}`} size="small" variant="outlined" />}
-          {run.source === 'ci_trigger' && run.gitlab_pipeline_url && (
+          {run.gitlab_pipeline_url && (
             <Chip
               icon={<OpenInNewIcon sx={{ fontSize: 14 }} />}
               label="View Pipeline"
