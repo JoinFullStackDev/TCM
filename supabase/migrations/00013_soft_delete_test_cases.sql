@@ -42,15 +42,13 @@ CREATE INDEX IF NOT EXISTS idx_audit_log_test_case
 COMMIT;
 
 -- ──────────────────────────────────────────────────────────────────────────────
--- 4. Partial indexes (MUST be outside any transaction block)
---    If your migration runner wraps everything in a transaction, execute these
---    two statements manually in a separate session after the migration runs.
+-- 4. Partial indexes
 -- ──────────────────────────────────────────────────────────────────────────────
 
 -- Active test cases (the hot path — almost every query uses this)
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_test_cases_active
+CREATE INDEX IF NOT EXISTS idx_test_cases_active
   ON test_cases (id) WHERE deleted_at IS NULL;
 
 -- Deleted test cases (trash view)
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_test_cases_deleted
+CREATE INDEX IF NOT EXISTS idx_test_cases_deleted
   ON test_cases (deleted_at DESC) WHERE deleted_at IS NOT NULL;
