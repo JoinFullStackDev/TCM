@@ -212,14 +212,16 @@ export default function TestCaseDataGrid({
       {
         field: 'display_id',
         headerName: 'ID',
-        width: columnWidths?.display_id ?? 110,
+        width: columnWidths?.display_id ?? 130,
         sortable: true,
         filterable: false,
         renderCell: (params: GridRenderCellParams<TestCaseRow>) => {
           if (!params.value) return null;
+          const position = params.row.position;
+          const label = position ? `${position} · ${params.value}` : params.value;
           return (
             <Chip
-              label={params.value}
+              label={label}
               size="small"
               variant="outlined"
               sx={{
