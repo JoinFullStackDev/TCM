@@ -70,5 +70,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     is_automated: tc.automation_status === 'in_cicd',
   }));
 
-  return NextResponse.json({ items, version: newVersion as number });
+  const cicd_locked = items.some((tc) => tc.is_automated);
+
+  return NextResponse.json({ items, version: newVersion as number, cicd_locked });
 }
