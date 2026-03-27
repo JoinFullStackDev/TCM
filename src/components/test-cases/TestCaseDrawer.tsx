@@ -14,8 +14,17 @@ import FormControl from '@mui/material/FormControl';
 import InputLabel from '@mui/material/InputLabel';
 import Divider from '@mui/material/Divider';
 import CircularProgress from '@mui/material/CircularProgress';
+import Dialog from '@mui/material/Dialog';
+import DialogTitle from '@mui/material/DialogTitle';
+import DialogContent from '@mui/material/DialogContent';
+import DialogActions from '@mui/material/DialogActions';
+import Alert from '@mui/material/Alert';
+import Tooltip from '@mui/material/Tooltip';
+import InputAdornment from '@mui/material/InputAdornment';
 import CloseIcon from '@mui/icons-material/Close';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import LockIcon from '@mui/icons-material/Lock';
+import EditIcon from '@mui/icons-material/Edit';
 import { alpha } from '@mui/material/styles';
 import { palette } from '@/theme/palette';
 import StepEditor, { type StepData } from './StepEditor';
@@ -98,6 +107,10 @@ export default function TestCaseDrawer({
   const [error, setError] = useState('');
   const [trashDialogOpen, setTrashDialogOpen] = useState(false);
   const [trashWarning, setTrashWarning] = useState<string | null>(null);
+
+  // display_id edit state
+  const [idEditDialogOpen, setIdEditDialogOpen] = useState(false);
+  const [pendingDisplayId, setPendingDisplayId] = useState('');
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -287,26 +300,62 @@ export default function TestCaseDrawer({
   };
 
   const handleOpenTrashDialog = async () => {
-    // Pre-flight: check if case is in an active run (the DELETE endpoint returns a warning)
     setTrashWarning(null);
+    // Pre-populate automation warning for in-CICD tests so user sees it before confirming
+    if (automationStatus === 'in_cicd') {
+      setTrashWarning('This test is used in automation. Archiving it may break your CI/CD pipeline.');
+    }
     setTrashDialogOpen(true);
   };
 
   const handleConfirmTrash = async () => {
     if (!testCaseId) return;
-    const res = await fetch(`/api/test-cases/${testCaseId}`, { method: 'DELETE' });
+    // Pass ?confirm=true for automated tests (since we already showed the warning)
+    const url = automationStatus === 'in_cicd'
+      ? `/api/test-cases/${testCaseId}?confirm=true`
+      : `/api/test-cases/${testCaseId}`;
+    const res = await fetch(url, { method: 'DELETE' });
     if (res.ok) {
+      const data = await res.json().catch(() => ({}));
+      if (data?.confirmation_required) {
+        // Should not happen since we pass ?confirm=true for in_cicd, but handle gracefully
+        setTrashWarning(data.warning ?? null);
+        return;
+      }
       setTrashDialogOpen(false);
       onClose();
       onTrashed?.();
     } else {
       const data = await res.json().catch(() => ({}));
-      if (data?.warning) {
-        setTrashWarning(data.warning);
+      setError(data?.error || 'Failed to move to trash');
+      setTrashDialogOpen(false);
+    }
+  };
+
+  const handleConfirmIdEdit = async () => {
+    if (!testCaseId || !pendingDisplayId.trim()) return;
+    setSaving(true);
+    setError('');
+    try {
+      const res = await fetch(`/api/test-cases/${testCaseId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ display_id: pendingDisplayId.trim() }),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setDisplayId(updated.display_id);
+        setIdEditDialogOpen(false);
       } else {
-        setError(data?.error || 'Failed to move to trash');
-        setTrashDialogOpen(false);
+        const data = await res.json().catch(() => ({}));
+        setError(data?.error || 'Failed to update ID');
+        setIdEditDialogOpen(false);
       }
+    } catch {
+      setError('Network error');
+      setIdEditDialogOpen(false);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -348,12 +397,34 @@ export default function TestCaseDrawer({
             }}
           >
             {displayId && (
-              <Chip
-                label={displayId}
-                size="small"
-                variant="outlined"
-                sx={{ fontFamily: 'monospace', fontWeight: 600 }}
-              />
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                <Chip
+                  label={displayId}
+                  size="small"
+                  variant="outlined"
+                  sx={{ fontFamily: 'monospace', fontWeight: 600 }}
+                />
+                {!readOnly && !createMode && (
+                  automationStatus === 'in_cicd' ? (
+                    <Tooltip title="This test is used in automation — ID is locked.">
+                      <LockIcon sx={{ fontSize: 14, color: 'text.disabled' }} />
+                    </Tooltip>
+                  ) : (
+                    <Tooltip title="Edit ID — changing may affect existing references">
+                      <IconButton
+                        size="small"
+                        sx={{ p: 0.25 }}
+                        onClick={() => {
+                          setPendingDisplayId(displayId);
+                          setIdEditDialogOpen(true);
+                        }}
+                      >
+                        <EditIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
+                      </IconButton>
+                    </Tooltip>
+                  )
+                )}
+              </Box>
             )}
             <Typography variant="h6" sx={{ flex: 1, fontWeight: 600 }}>
               {createMode ? 'New Test Case' : title || 'Test Case'}
@@ -659,6 +730,48 @@ export default function TestCaseDrawer({
           />
         </Box>
       )}
+
+      {/* ID Edit Confirmation Dialog */}
+      <Dialog open={idEditDialogOpen} onClose={() => setIdEditDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <EditIcon color="warning" />
+          Change Test Case ID
+        </DialogTitle>
+        <DialogContent>
+          <Alert severity="warning" sx={{ mb: 2 }}>
+            Changing this ID may affect existing references — links, reports, or team documentation that use the current ID will need to be updated.
+          </Alert>
+          <TextField
+            label="New ID"
+            value={pendingDisplayId}
+            onChange={(e) => setPendingDisplayId(e.target.value)}
+            fullWidth
+            size="small"
+            slotProps={{
+              input: {
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <Typography variant="caption" sx={{ color: 'text.secondary', fontFamily: 'monospace' }}>
+                      {displayId} →
+                    </Typography>
+                  </InputAdornment>
+                ),
+              },
+            }}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setIdEditDialogOpen(false)} disabled={saving}>Cancel</Button>
+          <Button
+            onClick={handleConfirmIdEdit}
+            color="warning"
+            variant="contained"
+            disabled={saving || !pendingDisplayId.trim() || pendingDisplayId.trim() === displayId}
+          >
+            {saving ? 'Saving…' : 'Change ID'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Drawer>
   );
 }

@@ -311,6 +311,8 @@ export default function SuiteViewPage() {
     }
   }, []);
 
+  const [reorderVersion, setReorderVersion] = useState<number | undefined>(undefined);
+
   const handleRowOrderChange = useCallback(
     async (params: GridRowOrderChangeParams) => {
       const { oldIndex, targetIndex } = params;
@@ -318,20 +320,42 @@ export default function SuiteViewPage() {
       const [moved] = reordered.splice(oldIndex, 1);
       reordered.splice(targetIndex, 0, moved);
 
-      const items = reordered.map((tc, i) => ({ id: tc.id, position: i }));
-      setTestCases(reordered.map((tc, i) => ({ ...tc, position: i })));
+      // Optimistic update: assign 1-based positions immediately
+      setTestCases(reordered.map((tc, i) => ({ ...tc, position: i + 1 })));
 
       try {
-        await fetch(`/api/suites/${suiteId}/test-cases/reorder`, {
+        const res = await fetch(`/api/suites/${suiteId}/test-cases/reorder`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ items }),
+          body: JSON.stringify({
+            ids: reordered.map((tc) => tc.id),
+            version: reorderVersion,
+          }),
         });
+        if (res.ok) {
+          const data = await res.json();
+          // Update local version for next optimistic concurrency check
+          if (data.version !== undefined) setReorderVersion(data.version);
+          // Sync server's authoritative positions
+          if (data.items) {
+            const posMap = new Map<string, number>(
+              (data.items as Array<{ id: string; position: number }>).map((it) => [it.id, it.position]),
+            );
+            setTestCases((prev) =>
+              prev.map((tc) => posMap.has(tc.id) ? { ...tc, position: posMap.get(tc.id)! } : tc),
+            );
+          }
+        } else if (res.status === 409) {
+          // Conflict — reload from server
+          fetchTestCases();
+        } else {
+          fetchTestCases();
+        }
       } catch {
         fetchTestCases();
       }
     },
-    [testCases, suiteId, fetchTestCases],
+    [testCases, suiteId, fetchTestCases, reorderVersion],
   );
 
   const filteredTestCases = useMemo(() => {
@@ -483,6 +507,16 @@ export default function SuiteViewPage() {
                 onCancel={() => setSelectedIds([])}
                 onBulkTrash={async () => {
                   if (selectedIds.length === 0) return;
+                  // Check if any selected cases are automated — show confirmation if so
+                  const automatedCount = testCases.filter(
+                    (tc) => selectedIds.includes(tc.id) && tc.automation_status === 'in_cicd',
+                  ).length;
+                  if (automatedCount > 0) {
+                    const confirmed = window.confirm(
+                      `${automatedCount} of the selected test case${automatedCount > 1 ? 's are' : ' is'} used in automation. Archiving may break your CI/CD pipeline. Continue?`,
+                    );
+                    if (!confirmed) return;
+                  }
                   const res = await fetch('/api/test-cases/bulk?action=delete', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },

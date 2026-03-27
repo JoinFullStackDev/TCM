@@ -74,10 +74,10 @@ async function handleBulkDelete(request: Request) {
   const { ids } = parsed.data;
   const now = new Date().toISOString();
 
-  // Find which IDs exist at all (unfiltered)
+  // Find which IDs exist at all (unfiltered) — include suite_id for position renormalization
   const { data: existing } = await supabase // UNFILTERED_SCOPE
     .from('test_cases')
-    .select('id, deleted_at')
+    .select('id, deleted_at, suite_id')
     .in('id', ids);
 
   const existingMap = new Map((existing ?? []).map((r) => [r.id, r]));
@@ -107,6 +107,20 @@ async function handleBulkDelete(request: Request) {
       metadata: {},
     }));
     await supabase.from('test_case_audit_log').insert(auditRows);
+
+    // Renormalize positions for affected suites
+    const affectedSuiteIds = [
+      ...new Set(
+        toDelete
+          .map((id) => existingMap.get(id))
+          .filter(Boolean)
+          .map((r) => (r as { suite_id?: string }).suite_id)
+          .filter(Boolean) as string[],
+      ),
+    ];
+    for (const sid of affectedSuiteIds) {
+      await renormalizePositions(supabase, sid);
+    }
   }
 
   return NextResponse.json({
@@ -128,10 +142,10 @@ async function handleBulkRestore(request: Request) {
   const { ids } = parsed.data;
   const now = new Date().toISOString();
 
-  // Find which IDs exist at all (unfiltered)
+  // Find which IDs exist at all (unfiltered) — include suite_id for position assignment
   const { data: existing } = await supabase // UNFILTERED_SCOPE
     .from('test_cases')
-    .select('id, deleted_at')
+    .select('id, deleted_at, suite_id')
     .in('id', ids);
 
   const existingMap = new Map((existing ?? []).map((r) => [r.id, r]));
@@ -161,6 +175,13 @@ async function handleBulkRestore(request: Request) {
       metadata: {},
     }));
     await supabase.from('test_case_audit_log').insert(auditRows);
+
+    // Assign each restored case a position at the end of its suite's active list
+    const restoredWithSuites = toRestore.map((id) => existingMap.get(id)) as Array<{ id: string; suite_id?: string }>;
+    const suiteIds = [...new Set(restoredWithSuites.map((r) => r?.suite_id).filter(Boolean) as string[])];
+    for (const sid of suiteIds) {
+      await appendRestoredPositions(supabase, sid);
+    }
   }
 
   return NextResponse.json({
@@ -168,4 +189,44 @@ async function handleBulkRestore(request: Request) {
     skipped: alreadyActive,
     not_found: notFound,
   });
+}
+
+/**
+ * After restoring test cases, assign them positions at the end of the suite's active list.
+ * Renormalizes all active positions to ensure consistency.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function appendRestoredPositions(supabase: any, suiteId: string): Promise<void> {
+  await renormalizePositions(supabase, suiteId);
+}
+
+/**
+ * Renormalize positions for all active test cases in a suite.
+ * Assigns sequential 1-based positions ordered by current position ASC.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function renormalizePositions(supabase: any, suiteId: string): Promise<void> {
+  const { data: activeCases } = await supabase
+    .from('test_cases')
+    .select('id, position')
+    .eq('suite_id', suiteId)
+    .is('deleted_at', null)
+    .order('position', { ascending: true });
+
+  if (!activeCases || activeCases.length === 0) return;
+
+  const updates = activeCases
+    .map((tc: { id: string; position: number }, i: number) => ({ id: tc.id, newPos: i + 1, oldPos: tc.position }))
+    .filter(({ newPos, oldPos }: { newPos: number; oldPos: number }) => newPos !== oldPos)
+    .map(({ id, newPos }: { id: string; newPos: number }) =>
+      supabase
+        .from('test_cases')
+        .update({ position: newPos })
+        .eq('id', id)
+        .is('deleted_at', null),
+    );
+
+  if (updates.length > 0) {
+    await Promise.all(updates);
+  }
 }

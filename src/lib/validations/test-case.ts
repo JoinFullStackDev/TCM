@@ -23,6 +23,7 @@ export const createTestCaseSchema = z.object({
 
 export const updateTestCaseSchema = z.object({
   title: z.string().trim().min(1).max(500).optional(),
+  display_id: z.string().trim().min(1).max(100).optional(),
   description: z.string().trim().max(5000).nullable().optional(),
   precondition: z.string().trim().max(5000).nullable().optional(),
   type: testCaseTypeEnum.optional(),
@@ -54,12 +55,10 @@ export const bulkIdsSchema = z.object({
 });
 
 export const reorderTestCasesSchema = z.object({
-  items: z.array(
-    z.object({
-      id: z.string().uuid(),
-      position: z.number().int().min(0),
-    }),
-  ).min(1),
+  /** Ordered array of test case UUIDs; position = index + 1 is derived server-side. */
+  ids: z.array(z.string().uuid()).min(1),
+  /** Optional reorder_version from the suite for optimistic concurrency. */
+  version: z.number().int().min(0).optional(),
 });
 
 export type CreateTestCaseInput = z.infer<typeof createTestCaseSchema>;
