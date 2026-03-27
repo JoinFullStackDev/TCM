@@ -18,8 +18,7 @@ export class TestCaseRepository {
 
   /** Default scope: active (not deleted) test cases only. */
   private baseQuery() {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return (this.db.from('test_cases') as any).is('deleted_at', null);
+    return this.db.from('test_cases').select('*').is('deleted_at', null);
   }
 
   /** Find a single active test case by ID. Returns null if deleted or missing. */
@@ -50,7 +49,11 @@ export class TestCaseRepository {
 
   /** List active test cases, optionally filtered. */
   async findAll(filters: TestCaseFilters = {}) {
-    let query = this.baseQuery().select('*, suite:suites(project_id)').order('position', { ascending: true });
+    let query = this.db
+      .from('test_cases')
+      .select('*, suite:suites(project_id)')
+      .is('deleted_at', null)
+      .order('position', { ascending: true });
 
     for (const [key, value] of Object.entries(filters)) {
       if (value !== undefined && value !== null) {
