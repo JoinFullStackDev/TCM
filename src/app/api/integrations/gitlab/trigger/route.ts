@@ -98,6 +98,7 @@ export async function POST(req: Request) {
       is_automated: true,
       source: "ci_trigger",
       created_by: user.id,
+      start_date: new Date().toISOString(),
     })
     .select()
     .single();
