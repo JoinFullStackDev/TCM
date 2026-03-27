@@ -34,7 +34,26 @@ export async function GET(request: Request) {
   if (suiteId) filters.suite_id = suiteId;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let testCases: any[] = await repo.findAll(filters);
+  let testCases: any[] = [];
+  try {
+    testCases = await repo.findAll(filters);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes('deleted_at') || msg.includes('42703')) {
+      // Migration 00013 not applied — fall back to a direct query without deleted_at
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let fallbackQuery = (supabase as any)
+        .from('test_cases')
+        .select('*, suite:suites(project_id)')
+        .order('position', { ascending: true });
+      if (filters.suite_id) fallbackQuery = fallbackQuery.eq('suite_id', filters.suite_id as string);
+      const { data: fbData, error: fbErr } = await fallbackQuery;
+      if (fbErr) return serverError(fbErr.message);
+      testCases = fbData ?? [];
+    } else {
+      return serverError(msg);
+    }
+  }
 
   // Text search applied in-memory (the supabase client query is constructed in findAll)
   // For search we need to re-query with ilike — fall through to direct query below
