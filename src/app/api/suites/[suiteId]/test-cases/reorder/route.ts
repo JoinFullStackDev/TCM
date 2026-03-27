@@ -10,11 +10,12 @@ interface RouteContext {
  * PATCH /api/suites/:suiteId/test-cases/reorder
  *
  * Accepts an ordered array of test case UUIDs and derives position = index + 1.
- * Writes positions in parallel, all scoped to suite_id.
- * Returns the full updated list sorted by position ASC plus the new reorder_version.
+ * Delegates to the reorder_test_cases() Postgres function which assigns all
+ * positions and increments reorder_version atomically in a single transaction,
+ * avoiding transient unique-constraint violations on (suite_id, position).
  *
  * Optimistic concurrency: if `version` is supplied and mismatches the suite's
- * current reorder_version, returns 409. On success, increments reorder_version.
+ * current reorder_version, returns 409. On success, returns the new reorder_version.
  */
 export async function PATCH(request: Request, context: RouteContext) {
   const auth = await withAuth('write');
@@ -28,7 +29,7 @@ export async function PATCH(request: Request, context: RouteContext) {
 
   const { ids, version } = parsed.data;
 
-  // Fetch the suite's current reorder_version (always needed to increment)
+  // Fetch the suite's current reorder_version for the optimistic concurrency check
   const { data: suite, error: suiteErr } = await supabase
     .from('suites')
     .select('reorder_version')
@@ -45,42 +46,29 @@ export async function PATCH(request: Request, context: RouteContext) {
     );
   }
 
-  // Write positions in parallel — each update is scoped to suite_id for safety
-  const updates = ids.map((id, index) =>
-    supabase
-      .from('test_cases')
-      .update({ position: index + 1 })
-      .eq('id', id)
-      .eq('suite_id', suiteId)
-      .is('deleted_at', null),
-  );
+  // Atomically assign positions + increment reorder_version via RPC
+  const { data: newVersion, error: rpcError } = await supabase
+    .rpc('reorder_test_cases', {
+      p_suite_id: suiteId,
+      p_ordered_ids: ids,
+    });
 
-  const results = await Promise.all(updates);
-  const failed = results.find((r) => r.error);
-  if (failed?.error) return serverError(failed.error.message);
+  if (rpcError) return serverError(rpcError.message);
 
-  const nextVersion = currentVersion + 1;
+  // Fetch the updated list sorted by position
+  const { data: testCases, error: fetchError } = await supabase
+    .from('test_cases')
+    .select('id, display_id, position, automation_status, title, suite_id')
+    .eq('suite_id', suiteId)
+    .is('deleted_at', null)
+    .order('position', { ascending: true });
 
-  // Increment reorder_version and fetch updated list in parallel
-  const [, fetchResult] = await Promise.all([
-    supabase
-      .from('suites')
-      .update({ reorder_version: nextVersion })
-      .eq('id', suiteId),
-    supabase
-      .from('test_cases')
-      .select('id, display_id, position, automation_status, title, suite_id')
-      .eq('suite_id', suiteId)
-      .is('deleted_at', null)
-      .order('position', { ascending: true }),
-  ]);
+  if (fetchError) return serverError(fetchError.message);
 
-  if (fetchResult.error) return serverError(fetchResult.error.message);
-
-  const items = (fetchResult.data ?? []).map((tc) => ({
+  const items = (testCases ?? []).map((tc) => ({
     ...tc,
     is_automated: tc.automation_status === 'in_cicd',
   }));
 
-  return NextResponse.json({ items, version: nextVersion });
+  return NextResponse.json({ items, version: newVersion as number });
 }
