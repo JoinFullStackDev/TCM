@@ -11,9 +11,9 @@ BEGIN;
 -- ──────────────────────────────────────────────────────────────────────────────
 ALTER TABLE test_cases
   ADD COLUMN IF NOT EXISTS deleted_at    TIMESTAMPTZ DEFAULT NULL,
-  ADD COLUMN IF NOT EXISTS deleted_by    UUID        DEFAULT NULL REFERENCES users(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS deleted_by    UUID        DEFAULT NULL REFERENCES auth.users(id) ON DELETE SET NULL,
   ADD COLUMN IF NOT EXISTS restored_at   TIMESTAMPTZ DEFAULT NULL,
-  ADD COLUMN IF NOT EXISTS restored_by   UUID        DEFAULT NULL REFERENCES users(id) ON DELETE SET NULL;
+  ADD COLUMN IF NOT EXISTS restored_by   UUID        DEFAULT NULL REFERENCES auth.users(id) ON DELETE SET NULL;
 
 -- ──────────────────────────────────────────────────────────────────────────────
 -- 2. Add snapshot columns to run_test_cases for run isolation
@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS test_case_audit_log (
   id           UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
   test_case_id UUID        NOT NULL REFERENCES test_cases(id) ON DELETE CASCADE,
   action       TEXT        NOT NULL CHECK (action IN ('deleted', 'restored')),
-  actor_id     UUID        NOT NULL REFERENCES users(id) ON DELETE SET NULL,
+  actor_id     UUID        NOT NULL REFERENCES auth.users(id) ON DELETE SET NULL,
   occurred_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   metadata     JSONB       DEFAULT '{}'
 );
