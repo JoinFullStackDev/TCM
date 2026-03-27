@@ -54,9 +54,13 @@ export default function TrashView({ suiteId }: TrashViewProps) {
   const [restoring, setRestoring] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState<Set<string>>(new Set());
 
-  // Hard delete dialog state
+  // Initial hard delete confirmation dialog
   const [hardDeleteTarget, setHardDeleteTarget] = useState<DeletedTestCase | null>(null);
   const [hardDeletePending, setHardDeletePending] = useState(false);
+
+  // Second-step CI/CD warning dialog (shown when API returns confirmation_required)
+  const [cicdConfirmTarget, setCicdConfirmTarget] = useState<{ id: string; warning: string } | null>(null);
+  const [cicdConfirmPending, setCicdConfirmPending] = useState(false);
 
   const fetchDeleted = useCallback(async () => {
     setLoading(true);
@@ -116,27 +120,56 @@ export default function TrashView({ suiteId }: TrashViewProps) {
     }
   };
 
+  /**
+   * First hard-delete attempt — always called without ?confirm=true.
+   * If the API returns { confirmation_required: true } (HTTP 200) for an
+   * in_cicd test, we surface the automation warning in a second dialog
+   * rather than treating the 200 as a success.
+   */
   const handleHardDelete = async () => {
     if (!hardDeleteTarget) return;
-    const { id, automation_status } = hardDeleteTarget;
+    const { id } = hardDeleteTarget;
     setHardDeletePending(true);
     setDeleting((prev) => new Set(prev).add(id));
     try {
-      // For automated tests, pass ?confirm=true since we already showed the warning
-      const confirm = automation_status === 'in_cicd' ? '&confirm=true' : '';
-      const res = await fetch(`/api/test-cases/${id}?hard=true${confirm}`, { method: 'DELETE' });
+      const res = await fetch(`/api/test-cases/${id}?hard=true`, { method: 'DELETE' });
       if (res.ok) {
         const data = await res.json().catch(() => ({}));
         if (data?.confirmation_required) {
-          // This shouldn't happen since we pass confirm=true, but handle gracefully
+          // API requires an extra automation-specific confirmation — show second dialog
+          setHardDeleteTarget(null);
+          setCicdConfirmTarget({ id, warning: data.warning ?? 'This test is used in automation. Permanently deleting it may break your CI/CD pipeline. This cannot be undone.' });
           return;
         }
+        // Actual deletion succeeded
         setCases((prev) => prev.filter((c) => c.id !== id));
         setSelected((prev) => { const next = new Set(prev); next.delete(id); return next; });
         setHardDeleteTarget(null);
       }
     } finally {
       setHardDeletePending(false);
+      setDeleting((prev) => { const next = new Set(prev); next.delete(id); return next; });
+    }
+  };
+
+  /**
+   * Second hard-delete attempt — called with ?confirm=true after the user
+   * acknowledges the automation-specific warning dialog.
+   */
+  const handleCicdConfirm = async () => {
+    if (!cicdConfirmTarget) return;
+    const { id } = cicdConfirmTarget;
+    setCicdConfirmPending(true);
+    setDeleting((prev) => new Set(prev).add(id));
+    try {
+      const res = await fetch(`/api/test-cases/${id}?hard=true&confirm=true`, { method: 'DELETE' });
+      if (res.ok) {
+        setCases((prev) => prev.filter((c) => c.id !== id));
+        setSelected((prev) => { const next = new Set(prev); next.delete(id); return next; });
+        setCicdConfirmTarget(null);
+      }
+    } finally {
+      setCicdConfirmPending(false);
       setDeleting((prev) => { const next = new Set(prev); next.delete(id); return next; });
     }
   };
@@ -261,7 +294,7 @@ export default function TrashView({ suiteId }: TrashViewProps) {
         </TableContainer>
       )}
 
-      {/* Hard Delete Confirmation Dialog */}
+      {/* Step 1 — Initial hard delete confirmation dialog */}
       <Dialog open={!!hardDeleteTarget} onClose={() => setHardDeleteTarget(null)} maxWidth="sm" fullWidth>
         <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <DeleteForeverIcon color="error" />
@@ -292,6 +325,36 @@ export default function TrashView({ suiteId }: TrashViewProps) {
             startIcon={<DeleteForeverIcon />}
           >
             {hardDeletePending ? 'Deleting…' : 'Delete Permanently'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Step 2 — Automation-specific confirmation dialog (only for in_cicd tests) */}
+      <Dialog open={!!cicdConfirmTarget} onClose={() => setCicdConfirmTarget(null)} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <DeleteForeverIcon color="error" />
+          Confirm Automated Test Deletion
+        </DialogTitle>
+        <DialogContent>
+          <Alert severity="error" sx={{ mb: 2 }}>
+            {cicdConfirmTarget?.warning}
+          </Alert>
+          <Typography variant="body2">
+            Are you sure you want to permanently delete this automated test? This action cannot be undone.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setCicdConfirmTarget(null)} disabled={cicdConfirmPending}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleCicdConfirm}
+            color="error"
+            variant="contained"
+            disabled={cicdConfirmPending}
+            startIcon={<DeleteForeverIcon />}
+          >
+            {cicdConfirmPending ? 'Deleting…' : 'Yes, Delete Permanently'}
           </Button>
         </DialogActions>
       </Dialog>
