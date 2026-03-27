@@ -30,6 +30,18 @@ export async function POST(_request: Request, context: RouteContext) {
 
   const now = new Date().toISOString();
 
+  // Compute next position: append at MAX(active position) + 1 for the suite
+  const { data: maxPosRow } = await supabase
+    .from('test_cases')
+    .select('position')
+    .eq('suite_id', existing.suite_id)
+    .is('deleted_at', null)
+    .order('position', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const nextPosition = ((maxPosRow?.position as number | null) ?? 0) + 1;
+
   const { data: restored, error: updateError } = await supabase
     .from('test_cases')
     .update({
@@ -37,10 +49,11 @@ export async function POST(_request: Request, context: RouteContext) {
       deleted_by: null,
       restored_at: now,
       restored_by: user.id,
+      position: nextPosition,
     })
     .eq('id', testCaseId)
     .not('deleted_at', 'is', null) // guard against race condition
-    .select('id, restored_at, restored_by')
+    .select('id, restored_at, restored_by, position')
     .single();
 
   if (updateError || !restored) {
