@@ -340,13 +340,19 @@ export default function SuiteViewPage() {
           const data = await res.json();
           // Update local version for next optimistic concurrency check
           if (data.version !== undefined) setReorderVersion(data.version);
-          // Sync server's authoritative positions
+          // Sync server's authoritative positions and display_ids
           if (data.items) {
-            const posMap = new Map<string, number>(
-              (data.items as Array<{ id: string; position: number }>).map((it) => [it.id, it.position]),
+            const posMap = new Map<string, { position: number; display_id: string }>(
+              (data.items as Array<{ id: string; position: number; display_id: string }>).map(
+                (it) => [it.id, { position: it.position, display_id: it.display_id }],
+              ),
             );
             setTestCases((prev) =>
-              prev.map((tc) => posMap.has(tc.id) ? { ...tc, position: posMap.get(tc.id)! } : tc),
+              prev.map((tc) => {
+                const update = posMap.get(tc.id);
+                if (!update) return tc;
+                return { ...tc, position: update.position, display_id: update.display_id };
+              }),
             );
           }
         } else if (res.status === 409) {

@@ -32,7 +32,6 @@ export const updateTestCaseSchema = z.object({
   platform_tags: z.array(platformEnum).optional(),
   priority: priorityEnum.nullable().optional(),
   tags: z.array(z.string().trim().max(50)).optional(),
-  position: z.number().int().min(0).optional(),
   suite_id: z.string().uuid().optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),
   category: categoryEnum.nullable().optional(),
