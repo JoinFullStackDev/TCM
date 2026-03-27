@@ -16,14 +16,20 @@ import TableRow from '@mui/material/TableRow';
 import Paper from '@mui/material/Paper';
 import Alert from '@mui/material/Alert';
 import CircularProgress from '@mui/material/CircularProgress';
+import Dialog from '@mui/material/Dialog';
+import DialogTitle from '@mui/material/DialogTitle';
+import DialogContent from '@mui/material/DialogContent';
+import DialogActions from '@mui/material/DialogActions';
 import RestoreIcon from '@mui/icons-material/Restore';
 import DeleteSweepIcon from '@mui/icons-material/DeleteSweep';
+import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 
 interface DeletedTestCase {
   id: string;
   display_id: string;
   title: string;
   deleted_at: string;
+  automation_status?: string;
   suite?: { name: string; prefix: string } | null;
 }
 
@@ -37,6 +43,7 @@ interface TrashViewProps {
  *
  * Features:
  * - Per-row restore button
+ * - Per-row permanent delete button (with confirmation)
  * - Bulk restore via checkbox selection
  */
 export default function TrashView({ suiteId }: TrashViewProps) {
@@ -45,6 +52,11 @@ export default function TrashView({ suiteId }: TrashViewProps) {
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [restoring, setRestoring] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState<Set<string>>(new Set());
+
+  // Hard delete dialog state
+  const [hardDeleteTarget, setHardDeleteTarget] = useState<DeletedTestCase | null>(null);
+  const [hardDeletePending, setHardDeletePending] = useState(false);
 
   const fetchDeleted = useCallback(async () => {
     setLoading(true);
@@ -104,6 +116,31 @@ export default function TrashView({ suiteId }: TrashViewProps) {
     }
   };
 
+  const handleHardDelete = async () => {
+    if (!hardDeleteTarget) return;
+    const { id, automation_status } = hardDeleteTarget;
+    setHardDeletePending(true);
+    setDeleting((prev) => new Set(prev).add(id));
+    try {
+      // For automated tests, pass ?confirm=true since we already showed the warning
+      const confirm = automation_status === 'in_cicd' ? '&confirm=true' : '';
+      const res = await fetch(`/api/test-cases/${id}?hard=true${confirm}`, { method: 'DELETE' });
+      if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        if (data?.confirmation_required) {
+          // This shouldn't happen since we pass confirm=true, but handle gracefully
+          return;
+        }
+        setCases((prev) => prev.filter((c) => c.id !== id));
+        setSelected((prev) => { const next = new Set(prev); next.delete(id); return next; });
+        setHardDeleteTarget(null);
+      }
+    } finally {
+      setHardDeletePending(false);
+      setDeleting((prev) => { const next = new Set(prev); next.delete(id); return next; });
+    }
+  };
+
   const toggleSelect = (id: string) => {
     setSelected((prev) => {
       const next = new Set(prev);
@@ -120,6 +157,8 @@ export default function TrashView({ suiteId }: TrashViewProps) {
 
   if (loading) return <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}><CircularProgress /></Box>;
   if (error) return <Alert severity="error">{error}</Alert>;
+
+  const isAutomated = (tc: DeletedTestCase) => tc.automation_status === 'in_cicd';
 
   return (
     <Box>
@@ -188,18 +227,32 @@ export default function TrashView({ suiteId }: TrashViewProps) {
                     </Typography>
                   </TableCell>
                   <TableCell align="right">
-                    <Tooltip title="Restore">
-                      <span>
-                        <IconButton
-                          size="small"
-                          color="primary"
-                          onClick={() => handleRestore(tc.id)}
-                          disabled={restoring.has(tc.id)}
-                        >
-                          <RestoreIcon fontSize="small" />
-                        </IconButton>
-                      </span>
-                    </Tooltip>
+                    <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 0.5 }}>
+                      <Tooltip title="Restore">
+                        <span>
+                          <IconButton
+                            size="small"
+                            color="primary"
+                            onClick={() => handleRestore(tc.id)}
+                            disabled={restoring.has(tc.id) || deleting.has(tc.id)}
+                          >
+                            <RestoreIcon fontSize="small" />
+                          </IconButton>
+                        </span>
+                      </Tooltip>
+                      <Tooltip title={isAutomated(tc) ? 'Delete permanently (automated — extra confirmation required)' : 'Delete permanently'}>
+                        <span>
+                          <IconButton
+                            size="small"
+                            color="error"
+                            onClick={() => setHardDeleteTarget(tc)}
+                            disabled={restoring.has(tc.id) || deleting.has(tc.id)}
+                          >
+                            <DeleteForeverIcon fontSize="small" />
+                          </IconButton>
+                        </span>
+                      </Tooltip>
+                    </Box>
                   </TableCell>
                 </TableRow>
               ))}
@@ -207,6 +260,41 @@ export default function TrashView({ suiteId }: TrashViewProps) {
           </Table>
         </TableContainer>
       )}
+
+      {/* Hard Delete Confirmation Dialog */}
+      <Dialog open={!!hardDeleteTarget} onClose={() => setHardDeleteTarget(null)} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <DeleteForeverIcon color="error" />
+          Delete Permanently
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" gutterBottom>
+            Are you sure you want to permanently delete <strong>&ldquo;{hardDeleteTarget?.title}&rdquo;</strong>?
+          </Typography>
+          <Alert severity="error" sx={{ mt: 1 }}>
+            This cannot be undone. The test case and all its history will be permanently removed.
+          </Alert>
+          {hardDeleteTarget && isAutomated(hardDeleteTarget) && (
+            <Alert severity="warning" sx={{ mt: 1 }}>
+              This test is used in automation. Permanently deleting it may break your CI/CD pipeline.
+            </Alert>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setHardDeleteTarget(null)} disabled={hardDeletePending}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleHardDelete}
+            color="error"
+            variant="contained"
+            disabled={hardDeletePending}
+            startIcon={<DeleteForeverIcon />}
+          >
+            {hardDeletePending ? 'Deleting…' : 'Delete Permanently'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }
