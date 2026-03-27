@@ -82,6 +82,20 @@ export interface TestCase {
   updated_by: string | null;
   created_at: string;
   updated_at: string;
+  // Soft-delete fields
+  deleted_at: string | null;
+  deleted_by: string | null;
+  restored_at: string | null;
+  restored_by: string | null;
+}
+
+export interface TestCaseAuditLog {
+  id: string;
+  test_case_id: string;
+  action: 'deleted' | 'restored';
+  actor_id: string;
+  occurred_at: string;
+  metadata: Record<string, unknown>;
 }
 
 export interface TestStep {
@@ -124,6 +138,10 @@ export interface TestRunCase {
   test_case_id: string;
   overall_status: ExecutionStatus;
   created_at: string;
+  // Snapshot columns — populated at run creation so the run engine never
+  // re-queries live test_cases after the run starts.
+  snapshot_title: string | null;
+  snapshot_steps: Record<string, unknown>[] | null;
 }
 
 export interface ExecutionResult {
