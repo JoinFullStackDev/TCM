@@ -320,7 +320,10 @@ export default function SuiteViewPage() {
   const handleRowOrderChange = useCallback(
     async (params: GridRowOrderChangeParams) => {
       const { oldIndex, targetIndex } = params;
-      const reordered = [...testCases];
+      // Sort by position to match the grid's rendered order (sortModel: position ASC).
+      // testCases state is in fetch order which may not match position order —
+      // using raw indices against the unsorted array moves the wrong item.
+      const reordered = [...testCases].sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
       const [moved] = reordered.splice(oldIndex, 1);
       reordered.splice(targetIndex, 0, moved);
 
