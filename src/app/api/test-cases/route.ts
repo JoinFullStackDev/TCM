@@ -194,6 +194,18 @@ export async function POST(request: Request) {
 
   const { display_id, sequence_number } = idResult as { display_id: string; sequence_number: number };
 
+  // Determine position: append at MAX(position) + 1 for the suite
+  const { data: maxPosRow } = await supabase
+    .from('test_cases')
+    .select('position')
+    .eq('suite_id', parsed.data.suite_id)
+    .is('deleted_at', null)
+    .order('position', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const nextPosition = ((maxPosRow?.position as number | null) ?? 0) + 1;
+
   const { data: testCase, error } = await supabase
     .from('test_cases')
     .insert({
@@ -208,7 +220,7 @@ export async function POST(request: Request) {
       platform_tags: parsed.data.platform_tags,
       priority: parsed.data.priority ?? null,
       tags: parsed.data.tags,
-      position: sequence_number,
+      position: nextPosition,
       created_by: user.id,
       updated_by: user.id,
     })
