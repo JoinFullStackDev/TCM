@@ -54,6 +54,7 @@ export interface Suite {
   color_index: number;
   position: number;
   next_sequence: number;
+  reorder_version: number;
   tags: string[];
   group: string | null;
   created_by: string;
