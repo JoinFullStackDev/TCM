@@ -11,9 +11,9 @@ BEGIN;
 -- ──────────────────────────────────────────────────────────────────────────────
 ALTER TABLE test_cases
   ADD COLUMN IF NOT EXISTS deleted_at    TIMESTAMPTZ DEFAULT NULL,
-  ADD COLUMN IF NOT EXISTS deleted_by    UUID        DEFAULT NULL REFERENCES users(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS deleted_by    UUID        DEFAULT NULL REFERENCES auth.users(id) ON DELETE SET NULL,
   ADD COLUMN IF NOT EXISTS restored_at   TIMESTAMPTZ DEFAULT NULL,
-  ADD COLUMN IF NOT EXISTS restored_by   UUID        DEFAULT NULL REFERENCES users(id) ON DELETE SET NULL;
+  ADD COLUMN IF NOT EXISTS restored_by   UUID        DEFAULT NULL REFERENCES auth.users(id) ON DELETE SET NULL;
 
 -- ──────────────────────────────────────────────────────────────────────────────
 -- 2. Add snapshot columns to run_test_cases for run isolation
@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS test_case_audit_log (
   id           UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
   test_case_id UUID        NOT NULL REFERENCES test_cases(id) ON DELETE CASCADE,
   action       TEXT        NOT NULL CHECK (action IN ('deleted', 'restored')),
-  actor_id     UUID        NOT NULL REFERENCES users(id) ON DELETE SET NULL,
+  actor_id     UUID        NOT NULL REFERENCES auth.users(id) ON DELETE SET NULL,
   occurred_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   metadata     JSONB       DEFAULT '{}'
 );
@@ -42,15 +42,13 @@ CREATE INDEX IF NOT EXISTS idx_audit_log_test_case
 COMMIT;
 
 -- ──────────────────────────────────────────────────────────────────────────────
--- 4. Partial indexes (MUST be outside any transaction block)
---    If your migration runner wraps everything in a transaction, execute these
---    two statements manually in a separate session after the migration runs.
+-- 4. Partial indexes
 -- ──────────────────────────────────────────────────────────────────────────────
 
 -- Active test cases (the hot path — almost every query uses this)
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_test_cases_active
+CREATE INDEX IF NOT EXISTS idx_test_cases_active
   ON test_cases (id) WHERE deleted_at IS NULL;
 
 -- Deleted test cases (trash view)
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_test_cases_deleted
+CREATE INDEX IF NOT EXISTS idx_test_cases_deleted
   ON test_cases (deleted_at DESC) WHERE deleted_at IS NOT NULL;

@@ -481,6 +481,18 @@ export default function SuiteViewPage() {
                 visible={selectedIds.length > 0}
                 onApply={handleBulkApply}
                 onCancel={() => setSelectedIds([])}
+                onBulkTrash={async () => {
+                  if (selectedIds.length === 0) return;
+                  const res = await fetch('/api/test-cases/bulk?action=delete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ids: selectedIds }),
+                  });
+                  if (res.ok) {
+                    setSelectedIds([]);
+                    fetchTestCases();
+                  }
+                }}
               />
             )}
 
@@ -518,6 +530,7 @@ export default function SuiteViewPage() {
           readOnly={readOnly}
           onClose={handleDrawerClose}
           onSaved={handleSaved}
+          onTrashed={() => { handleDrawerClose(); fetchTestCases(); }}
         />
       </Box>
     </PageTransition>

@@ -15,11 +15,13 @@ import InputLabel from '@mui/material/InputLabel';
 import Divider from '@mui/material/Divider';
 import CircularProgress from '@mui/material/CircularProgress';
 import CloseIcon from '@mui/icons-material/Close';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import { alpha } from '@mui/material/styles';
 import { palette } from '@/theme/palette';
 import StepEditor, { type StepData } from './StepEditor';
 import BugLinksList from './BugLinksList';
 import TestCaseNotes from '@/components/notes/TestCaseNotes';
+import MoveToTrashDialog from './MoveToTrashDialog';
 import type {
   TestCase,
   AutomationStatus,
@@ -38,6 +40,8 @@ interface TestCaseDrawerProps {
   readOnly: boolean;
   onClose: () => void;
   onSaved: () => void;
+  /** Called after the test case is successfully moved to trash. */
+  onTrashed?: () => void;
 }
 
 const AUTOMATION_OPTIONS: { value: AutomationStatus; label: string }[] = [
@@ -87,10 +91,13 @@ export default function TestCaseDrawer({
   readOnly,
   onClose,
   onSaved,
+  onTrashed,
 }: TestCaseDrawerProps) {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [trashDialogOpen, setTrashDialogOpen] = useState(false);
+  const [trashWarning, setTrashWarning] = useState<string | null>(null);
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -276,6 +283,30 @@ export default function TestCaseDrawer({
       setError('Network error');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleOpenTrashDialog = async () => {
+    // Pre-flight: check if case is in an active run (the DELETE endpoint returns a warning)
+    setTrashWarning(null);
+    setTrashDialogOpen(true);
+  };
+
+  const handleConfirmTrash = async () => {
+    if (!testCaseId) return;
+    const res = await fetch(`/api/test-cases/${testCaseId}`, { method: 'DELETE' });
+    if (res.ok) {
+      setTrashDialogOpen(false);
+      onClose();
+      onTrashed?.();
+    } else {
+      const data = await res.json().catch(() => ({}));
+      if (data?.warning) {
+        setTrashWarning(data.warning);
+      } else {
+        setError(data?.error || 'Failed to move to trash');
+        setTrashDialogOpen(false);
+      }
     }
   };
 
@@ -595,6 +626,17 @@ export default function TestCaseDrawer({
                 borderTop: `1px solid ${palette.divider}`,
               }}
             >
+              {!createMode && testCaseId && onTrashed !== undefined && (
+                <Button
+                  onClick={handleOpenTrashDialog}
+                  color="warning"
+                  disabled={saving}
+                  startIcon={<DeleteOutlineIcon />}
+                  sx={{ mr: 'auto' }}
+                >
+                  Move to Trash
+                </Button>
+              )}
               <Button onClick={onClose} color="inherit" disabled={saving}>
                 Cancel
               </Button>
@@ -607,6 +649,14 @@ export default function TestCaseDrawer({
               </Button>
             </Box>
           )}
+
+          <MoveToTrashDialog
+            open={trashDialogOpen}
+            testCaseTitle={title}
+            activeRunWarning={trashWarning}
+            onConfirm={handleConfirmTrash}
+            onClose={() => setTrashDialogOpen(false)}
+          />
         </Box>
       )}
     </Drawer>
