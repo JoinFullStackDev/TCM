@@ -42,6 +42,7 @@ export default function SuiteViewPage() {
 
   const [project, setProject] = useState<Project | null>(null);
   const [suite, setSuite] = useState<Suite | null>(null);
+  const [reorderVersion, setReorderVersion] = useState<number | undefined>(undefined);
   const [testCases, setTestCases] = useState<TestCase[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -81,8 +82,13 @@ export default function SuiteViewPage() {
 
   const fetchSuite = useCallback(async () => {
     const res = await fetch(`/api/projects/${projectId}/suites/${suiteId}`);
-    if (res.ok) setSuite(await res.json());
-    else router.push(`/projects/${projectId}`);
+    if (res.ok) {
+      const data = await res.json();
+      setSuite(data);
+      setReorderVersion(data.reorder_version ?? 0);
+    } else {
+      router.push(`/projects/${projectId}`);
+    }
   }, [projectId, suiteId, router]);
 
   const fetchTestCases = useCallback(async () => {
@@ -310,8 +316,6 @@ export default function SuiteViewPage() {
       setSaveStatus('error');
     }
   }, []);
-
-  const [reorderVersion, setReorderVersion] = useState<number | undefined>(undefined);
 
   const handleRowOrderChange = useCallback(
     async (params: GridRowOrderChangeParams) => {
