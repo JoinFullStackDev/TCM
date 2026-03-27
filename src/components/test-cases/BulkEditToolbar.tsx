@@ -12,6 +12,7 @@ import Chip from '@mui/material/Chip';
 import Collapse from '@mui/material/Collapse';
 import { alpha } from '@mui/material/styles';
 import { palette } from '@/theme/palette';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import type { AutomationStatus, TestCaseType, Priority, Platform, TestCaseCategory } from '@/types/database';
 
 export interface BulkEditUpdates {
@@ -35,6 +36,8 @@ interface BulkEditToolbarProps {
   onCancel: () => void;
   suites?: SuiteOption[];
   onMoveSuite?: (suiteId: string) => Promise<void>;
+  /** Called when the user confirms bulk Move to Trash. */
+  onBulkTrash?: () => Promise<void>;
 }
 
 export default function BulkEditToolbar({
@@ -44,6 +47,7 @@ export default function BulkEditToolbar({
   onCancel,
   suites,
   onMoveSuite,
+  onBulkTrash,
 }: BulkEditToolbarProps) {
   const [automationStatus, setAutomationStatus] = useState<string>('');
   const [type, setType] = useState<string>('');
@@ -215,6 +219,18 @@ export default function BulkEditToolbar({
         )}
 
         <Box sx={{ flex: 1 }} />
+
+        {onBulkTrash && (
+          <Button
+            onClick={onBulkTrash}
+            color="warning"
+            size="small"
+            startIcon={<DeleteOutlineIcon />}
+            disabled={applying}
+          >
+            Move to Trash
+          </Button>
+        )}
 
         <Button onClick={handleCancel} color="inherit" size="small" disabled={applying}>
           Cancel

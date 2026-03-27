@@ -11,6 +11,7 @@ export type Permission =
   | 'read'
   | 'write'
   | 'delete'
+  | 'soft_delete'
   | 'manage_users'
   | 'manage_integrations'
   | 'view_webhooks'
@@ -21,6 +22,8 @@ const PERMISSION_MAP: Record<Permission, UserRole[]> = {
   read: ['viewer', 'qa_engineer', 'sdet', 'admin'],
   write: ['qa_engineer', 'sdet', 'admin'],
   delete: ['admin'],
+  /** soft_delete — Editor+ (qa_engineer and above) can move test cases to trash and restore them. Viewers get 403. */
+  soft_delete: ['qa_engineer', 'sdet', 'admin'],
   manage_users: ['admin'],
   manage_integrations: ['sdet', 'admin'],
   view_webhooks: ['sdet', 'admin'],

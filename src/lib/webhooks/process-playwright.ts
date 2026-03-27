@@ -176,7 +176,7 @@ export async function processPlaywrightWebhook(
         ? `Automated run from CI: ${metadata.ci_url}`
         : 'Automated run from Playwright webhook',
       environment: (metadata?.environment as string) ?? null,
-      gitlab_pipeline_url: (metadata?.ci_url as string) ?? null,
+      gitlab_pipeline_url: (payload.pipeline_url as string) ?? (metadata?.ci_url as string) ?? null,
       status: 'completed',
       is_automated: true,
       source: 'playwright_webhook',

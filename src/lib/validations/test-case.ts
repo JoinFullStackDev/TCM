@@ -48,6 +48,11 @@ export const bulkUpdateSchema = z.object({
   }),
 });
 
+/** Schema for bulk soft-delete and bulk restore operations. Max 100 IDs. */
+export const bulkIdsSchema = z.object({
+  ids: z.array(z.string().uuid()).min(1, 'Select at least one test case').max(100, 'Maximum 100 test cases per bulk operation'),
+});
+
 export const reorderTestCasesSchema = z.object({
   items: z.array(
     z.object({
@@ -60,4 +65,5 @@ export const reorderTestCasesSchema = z.object({
 export type CreateTestCaseInput = z.infer<typeof createTestCaseSchema>;
 export type UpdateTestCaseInput = z.infer<typeof updateTestCaseSchema>;
 export type BulkUpdateInput = z.infer<typeof bulkUpdateSchema>;
+export type BulkIdsInput = z.infer<typeof bulkIdsSchema>;
 export type ReorderTestCasesInput = z.infer<typeof reorderTestCasesSchema>;

@@ -23,6 +23,7 @@ import AssessmentOutlinedIcon from '@mui/icons-material/AssessmentOutlined';
 import PeopleOutlineIcon from '@mui/icons-material/PeopleOutline';
 import WebhookOutlinedIcon from '@mui/icons-material/WebhookOutlined';
 import MenuBookOutlinedIcon from '@mui/icons-material/MenuBookOutlined';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import AccountCircleOutlinedIcon from '@mui/icons-material/AccountCircleOutlined';
 import FiberManualRecordIcon from '@mui/icons-material/FiberManualRecord';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
@@ -43,7 +44,7 @@ interface NavItem {
   icon: React.ReactNode;
   disabled?: boolean;
   adminOnly?: boolean;
-  permission?: 'view_webhooks';
+  permission?: 'view_webhooks' | 'soft_delete';
 }
 
 const NAV_ITEMS: NavItem[] = [
@@ -53,6 +54,8 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Reports', href: '/reports', icon: <AssessmentOutlinedIcon /> },
   { label: 'Integrations', href: '/integrations', icon: <WebhookOutlinedIcon />, permission: 'view_webhooks' },
   { label: 'Users', href: '/users', icon: <PeopleOutlineIcon />, adminOnly: true },
+  /** Trash — soft-deleted test cases. Editor+ only; the API enforces 403 for Viewers. */
+  { label: 'Trash', href: '/trash', icon: <DeleteOutlineIcon />, permission: 'soft_delete' as const },
 ];
 
 function extractProjectId(pathname: string): string | null {

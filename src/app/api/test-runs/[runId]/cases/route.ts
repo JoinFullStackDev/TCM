@@ -17,13 +17,16 @@ export async function GET(_request: Request, context: RouteContext) {
     .select(`
       *,
       test_cases:test_case_id(
-        id, display_id, title, platform_tags,
+        id, display_id, title, platform_tags, deleted_at,
         suites:suite_id(prefix, name)
       )
     `)
     .eq('test_run_id', runId);
 
   if (error) return serverError(error.message);
+  // Note: test_cases join may return a deleted case (deleted_at IS NOT NULL) — this is
+  // intentional for historical run results. The [Deleted] badge is shown in the UI.
+  // UNFILTERED_SCOPE — run history reads joined test_cases regardless of deleted_at
 
   const enriched = await Promise.all(
     (data ?? []).map(async (trc) => {
@@ -76,23 +79,39 @@ export async function POST(request: Request, context: RouteContext) {
   if (trcError) return serverError(trcError.message);
 
   for (const tcId of parsed.data.test_case_ids) {
+    // Only query active test cases (soft-delete safe)
     const { data: tc } = await supabase
       .from('test_cases')
-      .select('id, platform_tags')
+      .select('id, title, platform_tags')
       .eq('id', tcId)
+      .is('deleted_at', null) // active scope
       .single();
 
     if (!tc) continue;
 
     const { data: steps } = await supabase
       .from('test_steps')
-      .select('id')
+      .select('id, step_number, description, test_data, expected_result, is_automation_only')
+      .eq('test_case_id', tcId)
+      .order('step_number', { ascending: true });
+
+    const stepsSnapshot = steps ?? [];
+
+    // Snapshot title + steps into run_test_cases so the run engine never
+    // re-queries live test_cases after the run starts.
+    await supabase
+      .from('test_run_cases')
+      .update({
+        snapshot_title: tc.title,
+        snapshot_steps: stepsSnapshot,
+      })
+      .eq('test_run_id', runId)
       .eq('test_case_id', tcId);
 
-    if (!steps || steps.length === 0) continue;
+    if (stepsSnapshot.length === 0) continue;
 
     const platforms = (tc.platform_tags as string[]) ?? ['desktop'];
-    const erRows = steps.flatMap((step) =>
+    const erRows = stepsSnapshot.flatMap((step) =>
       platforms.map((platform) => ({
         test_run_id: runId,
         test_case_id: tcId,

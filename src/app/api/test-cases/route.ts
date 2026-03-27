@@ -1,37 +1,54 @@
 import { NextResponse } from 'next/server';
 import { withAuth, validationError, serverError } from '@/lib/api/helpers';
 import { createTestCaseSchema } from '@/lib/validations/test-case';
+import { TestCaseRepository } from '@/lib/db/test-case-repository';
 
 export async function GET(request: Request) {
   const auth = await withAuth('read');
   if (!auth.ok) return auth.response;
-  const { supabase } = auth.ctx;
+  const { supabase, role } = auth.ctx;
 
   const { searchParams } = new URL(request.url);
   const suiteId = searchParams.get('suite_id');
   const includeStatus = searchParams.get('include_status') === 'true';
   const includeSteps = searchParams.get('include_steps') === 'true';
   const runId = searchParams.get('run_id');
-
+  const deleted = searchParams.get('deleted') === 'true';
   const search = searchParams.get('search')?.trim();
 
-  let query = supabase
-    .from('test_cases')
-    .select('*, suite:suites(project_id)')
-    .order('position', { ascending: true });
+  const repo = new TestCaseRepository(supabase);
 
-  if (suiteId) {
-    query = query.eq('suite_id', suiteId);
+  // Trash view — Editor+ only (403 for Viewers)
+  if (deleted) {
+    if (role === 'viewer') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+    const filters: Record<string, unknown> = {};
+    if (suiteId) filters.suite_id = suiteId;
+    const testCases = await repo.findDeleted(filters); // TRASH_SCOPE
+    return NextResponse.json(testCases);
   }
 
+  // Normal active-cases path
+  const filters: Record<string, unknown> = {};
+  if (suiteId) filters.suite_id = suiteId;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let testCases: any[] = await repo.findAll(filters);
+
+  // Text search applied in-memory (the supabase client query is constructed in findAll)
+  // For search we need to re-query with ilike — fall through to direct query below
   if (search) {
-    query = query.or(`display_id.ilike.%${search}%,title.ilike.%${search}%`);
+    // Re-query with search filter directly (repository doesn't support ilike yet)
+    const { data, error } = await supabase
+      .from('test_cases')
+      .select('*, suite:suites(project_id)')
+      .is('deleted_at', null)
+      .or(`display_id.ilike.%${search}%,title.ilike.%${search}%`)
+      .order('position', { ascending: true });
+    if (error) return serverError(error.message);
+    testCases = data ?? [];
   }
-
-  const { data, error } = await query;
-  if (error) return serverError(error.message);
-
-  const testCases = data ?? [];
 
   if (includeSteps && testCases.length > 0) {
     const caseIds = testCases.map((tc) => tc.id);
@@ -44,7 +61,7 @@ export async function GET(request: Request) {
     const stepsMap: Record<string, Array<Record<string, unknown>>> = {};
     for (const s of allSteps ?? []) {
       if (!stepsMap[s.test_case_id]) stepsMap[s.test_case_id] = [];
-      stepsMap[s.test_case_id].push(s);
+      stepsMap[s.test_case_id].push(s as Record<string, unknown>);
     }
     for (const tc of testCases) {
       (tc as Record<string, unknown>).test_steps = stepsMap[tc.id] ?? [];
@@ -141,6 +158,13 @@ export async function POST(request: Request) {
   const parsed = createTestCaseSchema.safeParse(body);
   if (!parsed.success) return validationError(parsed.error.flatten());
 
+  // Duplicate-name notice: check if a deleted case with the same title exists
+  const repo = new TestCaseRepository(supabase);
+  const deletedMatches = await repo.findDeletedByTitle(parsed.data.title, parsed.data.suite_id);
+  const duplicateNotice = deletedMatches.length > 0
+    ? `A deleted test case named "${parsed.data.title}" exists in the trash. You can restore it instead.`
+    : null;
+
   const { data: idResult, error: rpcError } = await supabase
     .rpc('generate_test_case_id', { p_suite_id: parsed.data.suite_id })
     .single();
@@ -174,5 +198,8 @@ export async function POST(request: Request) {
 
   if (error) return serverError(error.message);
 
-  return NextResponse.json(testCase, { status: 201 });
+  return NextResponse.json(
+    { ...testCase, ...(duplicateNotice ? { notice: duplicateNotice } : {}) },
+    { status: 201 },
+  );
 }
