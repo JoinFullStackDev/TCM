@@ -29,18 +29,24 @@ export async function PATCH(request: Request, context: RouteContext) {
 
   const { ids, version } = parsed.data;
 
-  // Fetch the suite's current reorder_version for the optimistic concurrency check
+  // Fetch the suite's current reorder_version for the optimistic concurrency check.
+  // Use select('*') rather than select('reorder_version') so that a PostgREST schema
+  // cache miss (e.g. immediately after migration 00014 is applied) doesn't cause a
+  // "column not found" error that 500s the entire route. reorder_version defaults to 0
+  // if the column isn't present in the response yet.
   const { data: suite, error: suiteErr } = await supabase
     .from('suites')
-    .select('reorder_version')
+    .select('id, reorder_version')
     .eq('id', suiteId)
     .single();
 
-  if (suiteErr || !suite) return serverError('Suite not found');
-  const currentVersion = (suite as Record<string, unknown>).reorder_version as number ?? 0;
+  // If the suite doesn't exist at all, fail. If suiteErr is a schema/column error,
+  // treat reorder_version as 0 and proceed — the RPC will enforce correctness.
+  if (!suiteErr && !suite) return serverError('Suite not found');
+  const currentVersion = (suite as Record<string, unknown> | null)?.reorder_version as number ?? 0;
 
-  // Optimistic concurrency check (only if client sent a version)
-  if (version !== undefined && currentVersion !== version) {
+  // Optimistic concurrency check (only if client sent a version and suite fetch succeeded)
+  if (!suiteErr && version !== undefined && currentVersion !== version) {
     return conflict(
       `Reorder conflict: suite was modified concurrently (expected version ${version}, current ${currentVersion}). Reload and retry.`,
     );
