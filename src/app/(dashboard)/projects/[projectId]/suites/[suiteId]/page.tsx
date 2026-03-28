@@ -48,6 +48,7 @@ export default function SuiteViewPage() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reorderInFlightRef = useRef(false);
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerTestCaseId, setDrawerTestCaseId] = useState<string | null>(null);
@@ -319,6 +320,14 @@ export default function SuiteViewPage() {
 
   const handleRowOrderChange = useCallback(
     async (params: GridRowOrderChangeParams) => {
+      // Guard against MUI DataGrid Pro v8 double-fire: when the rows prop changes
+      // after the optimistic update, the grid fires onRowOrderChange a second time
+      // (to "normalize" the new rows), which reverts the reorder within ~200ms.
+      // The ref is set before the optimistic update and cleared after the server
+      // response (or on error), so any re-fire during that window is ignored.
+      if (reorderInFlightRef.current) return;
+      reorderInFlightRef.current = true;
+
       const { oldIndex, targetIndex } = params;
       // Sort by position to match the grid's rendered order (sortModel: position ASC).
       // testCases state is in fetch order which may not match position order —
@@ -366,6 +375,8 @@ export default function SuiteViewPage() {
         }
       } catch {
         fetchTestCases();
+      } finally {
+        reorderInFlightRef.current = false;
       }
     },
     [testCases, suiteId, fetchTestCases, reorderVersion],
