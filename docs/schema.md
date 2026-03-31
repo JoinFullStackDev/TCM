@@ -206,7 +206,7 @@ Logical grouping of test cases within a project (N4 AC-2). Maps to individual sh
 | --------------- | ------------- | ----------------------------------------------- | ------------------------------------------------------------------------ |
 | `id`            | `uuid`        | **PK**, DEFAULT `gen_random_uuid()`             |                                                                          |
 | `project_id`    | `uuid`        | FK → `projects(id)` ON DELETE CASCADE, NOT NULL |                                                                          |
-| `name`          | `text`        | NOT NULL                                        | e.g., "Sponsor Registration"                                             |
+| `name`          | `text`        | NOT NULL                                        | e.g., "Founder Registration"                                             |
 | `prefix`        | `text`        | NOT NULL                                        | e.g., "SR" — used for test case ID generation                            |
 | `description`   | `text`        |                                                 |                                                                          |
 | `color_index`   | `smallint`    | NOT NULL, DEFAULT `0`                           | Cycles through palette: 0=Primary, 1=Success, 2=Info, 3=Warning, 4=Error |

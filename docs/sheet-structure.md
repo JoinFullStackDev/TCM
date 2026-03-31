@@ -4,7 +4,7 @@
 
 ## Sheet Layout
 
-Each Google Sheets workbook represents a **project** (e.g., "Marketplace"). Within a workbook, each **sheet tab** represents a logical grouping of test cases (e.g., "Sponsor Registration", "Sponsor Login", "Account Registration", "Smoke Tests").
+Each Google Sheets workbook represents a **project** (e.g., "Marketplace"). Within a workbook, each **sheet tab** represents a logical grouping of test cases (e.g., "Founder Registration", "Founder Login", "Account Registration", "Smoke Tests").
 
 ## Collapsible Test Case Groups
 
@@ -14,7 +14,7 @@ Test cases are organized as **collapsible row groups** within each sheet. Each g
 
 | Field | Example |
 |---|---|
-| Test Case Name + ID | `Sponsor Login SL-1` |
+| Test Case Name + ID | `Founder Login SL-1` |
 | Manual Testing Status | `Manual Testing Complete` |
 | Automation Status | `IN CICD` / `SCRIPTED` / `OUT OF SYNC` |
 | Overall Status | `BLOCKED` (when applicable) |

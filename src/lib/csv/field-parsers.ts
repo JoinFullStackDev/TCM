@@ -81,7 +81,7 @@ export interface SuiteInfo {
 
 /**
  * Extracts suite name and display_id from a test case header row.
- * "Sponsor Registration SR-1" -> { suiteName: "Sponsor Registration", displayId: "SR-1", prefix: "SR", seq: 1 }
+ * "Founder Registration SR-1" -> { suiteName: "Founder Registration", displayId: "SR-1", prefix: "SR", seq: 1 }
  */
 export function parseSuiteFromHeader(headerText: string): SuiteInfo | null {
   const trimmed = headerText.trim();

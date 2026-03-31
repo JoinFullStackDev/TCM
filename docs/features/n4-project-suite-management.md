@@ -17,24 +17,24 @@
 ### AC-2: Suite Creation with Prefix
 
 - Given I have created the "Marketplace" project
-- When I create a suite within it for a grouping such as "Sponsor Registration" and set the suite key/prefix to "SR"
-- Then test cases in that suite are organized under "Sponsor Registration" and use IDs starting with "SR"
+- When I create a suite within it for a grouping such as "Founder Registration" and set the suite key/prefix to "SR"
+- Then test cases in that suite are organized under "Founder Registration" and use IDs starting with "SR"
 
 ### AC-3: Auto-Generated Test Case IDs
 
-- Given I have a suite "Sponsor Registration" with prefix "SR"
+- Given I have a suite "Founder Registration" with prefix "SR"
 - When I create the first test case in that suite
 - Then the test case ID is automatically generated as "SR-1"
 
 ### AC-4: Sequential ID Assignment
 
-- Given I have existing test cases SR-1 and SR-2 in the "Sponsor Registration" suite
+- Given I have existing test cases SR-1 and SR-2 in the "Founder Registration" suite
 - When I create another test case in the same suite
 - Then the test case ID is automatically generated as "SR-3"
 
 ### AC-5: Suite-Based Organization View
 
-- Given I have created multiple suites within the "Marketplace" project (e.g., "Sponsor Registration", "Investor Registration")
+- Given I have created multiple suites within the "Marketplace" project (e.g., "Founder Registration", "Investor Registration")
 - When I view the project
 - Then test cases are visually organized by suite, matching the logical groupings from my spreadsheets
 

@@ -26,7 +26,7 @@ export const HEADER_ROW_POSITIONS = {
  * Detects the type of a CSV row from the Google Sheets export format.
  *
  * Row patterns:
- *   header:          "Sponsor Registration SR-1,,Manual Testing Complete,,IN CICD,..."
+ *   header:          "Founder Registration SR-1,,Manual Testing Complete,,IN CICD,..."
  *   column_header:   "Id,Description,Precondition,Test Step #,..."
  *   automation_only: ",,,**Automation Only**,description,..."
  *   first_step:      "SR-1,description,precondition,1,step desc,..."
