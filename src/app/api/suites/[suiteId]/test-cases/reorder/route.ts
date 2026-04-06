@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { withAuth, validationError, serverError, conflict } from '@/lib/api/helpers';
+import { withAuth, validationError, serverError, notFound, conflict } from '@/lib/api/helpers';
+import { createServiceClient } from '@/lib/supabase/server';
 import { reorderTestCasesSchema } from '@/lib/validations/test-case';
 
 interface RouteContext {
@@ -29,21 +30,39 @@ export async function PATCH(request: Request, context: RouteContext) {
 
   const { ids, version } = parsed.data;
 
-  // Fetch the suite's current reorder_version for the optimistic concurrency check
-  const { data: suite, error: suiteErr } = await supabase
-    .from('suites')
-    .select('reorder_version')
-    .eq('id', suiteId)
-    .single();
+  // Optimistic concurrency check (only if client sent a version).
+  //
+  // IMPORTANT: uses the service-role client, NOT the user/anon client.
+  //
+  // Root cause of the production 500: the user client created by `withAuth`
+  // relies on the authenticated JWT being present in the PostgREST request.
+  // In Next.js App Router, cookie propagation can lag or fail for PATCH
+  // requests, causing the query to run as the `anon` role. The `suites_select`
+  // RLS policy only grants SELECT to `authenticated`, so `anon` sees 0 rows.
+  // `.single()` then returns PGRST116 → `suiteErr` is set → handler returns
+  // 500 with "Suite not found".
+  //
+  // The service-role client bypasses RLS entirely and always resolves the row,
+  // making the version check reliable. The RPC (reorder_test_cases) already
+  // runs as SECURITY DEFINER for the same reason — this aligns the pre-flight
+  // check with the same security posture.
+  if (version !== undefined) {
+    const serviceClient = await createServiceClient();
+    const { data: suite, error: suiteErr } = await serviceClient
+      .from('suites')
+      .select('reorder_version')
+      .eq('id', suiteId)
+      .single();
 
-  if (suiteErr || !suite) return serverError('Suite not found');
-  const currentVersion = (suite as Record<string, unknown>).reorder_version as number ?? 0;
+    if (suiteErr || !suite) return notFound('Suite');
 
-  // Optimistic concurrency check (only if client sent a version)
-  if (version !== undefined && currentVersion !== version) {
-    return conflict(
-      `Reorder conflict: suite was modified concurrently (expected version ${version}, current ${currentVersion}). Reload and retry.`,
-    );
+    const currentVersion = (suite as Record<string, unknown>).reorder_version as number ?? 0;
+
+    if (currentVersion !== version) {
+      return conflict(
+        `Reorder conflict: suite was modified concurrently (expected version ${version}, current ${currentVersion}). Reload and retry.`,
+      );
+    }
   }
 
   // Atomically assign positions + increment reorder_version via RPC
