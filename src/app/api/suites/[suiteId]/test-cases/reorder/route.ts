@@ -21,7 +21,6 @@ interface RouteContext {
 export async function PATCH(request: Request, context: RouteContext) {
   const auth = await withAuth('write');
   if (!auth.ok) return auth.response;
-  const { supabase } = auth.ctx;
   const { suiteId } = await context.params;
 
   const body = await request.json();
@@ -30,24 +29,29 @@ export async function PATCH(request: Request, context: RouteContext) {
 
   const { ids, version } = parsed.data;
 
-  // Optimistic concurrency check (only if client sent a version).
-  //
-  // IMPORTANT: uses the service-role client, NOT the user/anon client.
+  // All DB operations on this route use the service-role client.
   //
   // Root cause of the production 500: the user client created by `withAuth`
-  // relies on the authenticated JWT being present in the PostgREST request.
+  // relies on the authenticated JWT being present in PostgREST requests.
   // In Next.js App Router, cookie propagation can lag or fail for PATCH
-  // requests, causing the query to run as the `anon` role. The `suites_select`
-  // RLS policy only grants SELECT to `authenticated`, so `anon` sees 0 rows.
-  // `.single()` then returns PGRST116 → `suiteErr` is set → handler returns
-  // 500 with "Suite not found".
+  // requests, causing queries to run as the `anon` role. Two problems result:
   //
-  // The service-role client bypasses RLS entirely and always resolves the row,
-  // making the version check reliable. The RPC (reorder_test_cases) already
-  // runs as SECURITY DEFINER for the same reason — this aligns the pre-flight
-  // check with the same security posture.
+  //   1. `suites_select` RLS policy only grants SELECT to `authenticated` →
+  //      `anon` sees 0 rows → `.single()` returns PGRST116 → "Suite not found"
+  //
+  //   2. `reorder_test_cases` RPC is SECURITY DEFINER (runs as owner), but
+  //      the *caller* still needs EXECUTE permission. `anon` role was never
+  //      granted EXECUTE, so PostgREST returns an error before the function
+  //      even runs.
+  //
+  // Auth is already verified above via `withAuth`. Using the service-role
+  // client here is safe — it bypasses RLS and permission checks while keeping
+  // all business logic (CICD locking, display_id renumbering) inside the
+  // SECURITY DEFINER RPC where it belongs.
+  const serviceClient = await createServiceClient();
+
+  // Optimistic concurrency check (only if client sent a version).
   if (version !== undefined) {
-    const serviceClient = await createServiceClient();
     const { data: suite, error: suiteErr } = await serviceClient
       .from('suites')
       .select('reorder_version')
@@ -66,7 +70,7 @@ export async function PATCH(request: Request, context: RouteContext) {
   }
 
   // Atomically assign positions + increment reorder_version via RPC
-  const { data: newVersion, error: rpcError } = await supabase
+  const { data: newVersion, error: rpcError } = await serviceClient
     .rpc('reorder_test_cases', {
       p_suite_id: suiteId,
       p_ordered_ids: ids,
@@ -75,7 +79,7 @@ export async function PATCH(request: Request, context: RouteContext) {
   if (rpcError) return serverError(rpcError.message);
 
   // Fetch the updated list sorted by position
-  const { data: testCases, error: fetchError } = await supabase
+  const { data: testCases, error: fetchError } = await serviceClient
     .from('test_cases')
     .select('id, display_id, position, automation_status, title, suite_id')
     .eq('suite_id', suiteId)
