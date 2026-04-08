@@ -37,6 +37,7 @@ import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import CheckIcon from '@mui/icons-material/Check';
 import StopIcon from '@mui/icons-material/Stop';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import RemoveCircleOutlineIcon from '@mui/icons-material/RemoveCircleOutline';
 import DevicesIcon from '@mui/icons-material/Devices';
 import PersonOutlineIcon from '@mui/icons-material/PersonOutline';
 import PersonOffOutlinedIcon from '@mui/icons-material/PersonOffOutlined';
@@ -195,6 +196,24 @@ export default function RunDetailPage() {
   const handleCasesAdded = () => {
     fetchCases();
     fetchRun();
+  };
+
+  const [removingCaseId, setRemovingCaseId] = useState<string | null>(null);
+
+  const handleRemoveCase = async (testCaseId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setRemovingCaseId(testCaseId);
+    try {
+      await fetch(`/api/test-runs/${runId}/cases`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ test_case_ids: [testCaseId] }),
+      });
+      await fetchCases();
+      await fetchRun();
+    } finally {
+      setRemovingCaseId(null);
+    }
   };
 
   if (authLoading || loading || !run) {
@@ -389,6 +408,7 @@ export default function RunDetailPage() {
                     <TableCell sx={{ fontWeight: 600, color: 'text.secondary', fontSize: '0.75rem' }}>Title</TableCell>
                     <TableCell sx={{ fontWeight: 600, color: 'text.secondary', fontSize: '0.75rem', width: 180 }}>Platform Status</TableCell>
                     <TableCell sx={{ fontWeight: 600, color: 'text.secondary', fontSize: '0.75rem', width: 100 }}>Overall</TableCell>
+                    {canWrite && <TableCell sx={{ width: 48 }} />}
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -405,6 +425,21 @@ export default function RunDetailPage() {
                       <TableCell><Typography variant="body2">{trc.test_cases?.title ?? 'Unknown'}</Typography></TableCell>
                       <TableCell><CombinedStatusDisplay platformStatus={trc.platform_status} /></TableCell>
                       <TableCell><StatusBadge status={trc.overall_status} /></TableCell>
+                      {canWrite && (
+                        <TableCell sx={{ p: 0.5 }} onClick={(e) => e.stopPropagation()}>
+                          <IconButton
+                            size="small"
+                            title="Remove from run"
+                            disabled={removingCaseId === trc.test_case_id}
+                            onClick={(e) => handleRemoveCase(trc.test_case_id, e)}
+                            sx={{ color: 'text.disabled', '&:hover': { color: 'error.main' } }}
+                          >
+                            {removingCaseId === trc.test_case_id
+                              ? <CircularProgress size={14} />
+                              : <RemoveCircleOutlineIcon fontSize="small" />}
+                          </IconButton>
+                        </TableCell>
+                      )}
                     </TableRow>
                   ))}
                 </TableBody>
