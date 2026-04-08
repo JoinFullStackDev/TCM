@@ -23,7 +23,7 @@ import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
-import ExecutionMatrix, { type ResultMap, type BrowserResultMap } from '@/components/execution/ExecutionMatrix';
+import ExecutionMatrix, { type ResultMap, type BrowserResultMap, type ResultEntry } from '@/components/execution/ExecutionMatrix';
 import AnnotationPanel from '@/components/execution/AnnotationPanel';
 import { useAuth } from '@/components/providers/AuthProvider';
 import type { TestCase, TestStep, ExecutionStatus, Platform, ExecutionResult } from '@/types/database';
@@ -82,7 +82,7 @@ export default function ExecuteCasePage() {
         browserSet.add(browser);
         if (!bMap[r.test_step_id]) bMap[r.test_step_id] = {};
         if (!bMap[r.test_step_id][r.platform]) bMap[r.test_step_id][r.platform] = {};
-        bMap[r.test_step_id][r.platform][browser] = { status: r.status, id: r.id };
+        bMap[r.test_step_id][r.platform][browser] = { status: r.status, id: r.id, comment: r.comment };
         if (r.status === 'fail') {
           failedIds[`${r.test_step_id}_${r.platform}_${browser}`] = r.id;
         }
@@ -100,20 +100,28 @@ export default function ExecuteCasePage() {
     if (!authLoading) fetchData();
   }, [authLoading, fetchData]);
 
-  const handleStatusChange = async (stepId: string, platform: Platform, newStatus: ExecutionStatus) => {
+  const handleStatusChange = async (stepId: string, platform: Platform, newStatus: ExecutionStatus, comment?: string | null) => {
     if (!testCase) return;
 
-    setBrowserResults((prev) => ({
-      ...prev,
-      [stepId]: {
-        ...prev[stepId],
-        [platform]: {
-          ...prev[stepId]?.[platform],
-          [selectedBrowser]: { ...prev[stepId]?.[platform]?.[selectedBrowser], status: newStatus },
+    setBrowserResults((prev) => {
+      const prev_entry = prev[stepId]?.[platform]?.[selectedBrowser] ?? {} as ResultEntry;
+      return {
+        ...prev,
+        [stepId]: {
+          ...prev[stepId],
+          [platform]: {
+            ...prev[stepId]?.[platform],
+            [selectedBrowser]: {
+              ...prev_entry,
+              status: newStatus,
+              comment: comment !== undefined ? comment : prev_entry.comment,
+            },
+          },
         },
-      },
-    }));
+      };
+    });
 
+    const currentComment = browserResults[stepId]?.[platform]?.[selectedBrowser]?.comment;
     await fetch(`/api/test-runs/${runId}/results`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -124,6 +132,7 @@ export default function ExecuteCasePage() {
           platform,
           browser: selectedBrowser,
           status: newStatus,
+          comment: comment !== undefined ? comment : currentComment ?? null,
         }],
       }),
     });
@@ -150,6 +159,22 @@ export default function ExecuteCasePage() {
       }
       setFailedResultIds(failedIds);
     }
+  };
+
+  const handleCommentChange = (stepId: string, platform: Platform, comment: string) => {
+    setBrowserResults((prev) => {
+      const prev_entry = prev[stepId]?.[platform]?.[selectedBrowser] ?? {} as ResultEntry;
+      return {
+        ...prev,
+        [stepId]: {
+          ...prev[stepId],
+          [platform]: {
+            ...prev[stepId]?.[platform],
+            [selectedBrowser]: { ...prev_entry, comment },
+          },
+        },
+      };
+    });
   };
 
   const handleAddBrowser = () => {
@@ -240,6 +265,7 @@ export default function ExecuteCasePage() {
             selectedBrowser={selectedBrowser}
             onBrowserChange={setSelectedBrowser}
             onStatusChange={handleStatusChange}
+            onCommentChange={handleCommentChange}
             readOnly={readOnly}
           />
         </Box>

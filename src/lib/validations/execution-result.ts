@@ -9,6 +9,7 @@ export const upsertResultSchema = z.object({
   platform: platformEnum,
   browser: z.string().trim().max(100).optional().default('default'),
   status: executionStatusEnum,
+  comment: z.string().trim().max(2000).nullable().optional(),
 });
 
 export const upsertResultsSchema = z.object({

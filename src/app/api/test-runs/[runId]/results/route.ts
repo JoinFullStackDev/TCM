@@ -46,6 +46,7 @@ export async function PUT(request: Request, context: RouteContext) {
     platform: r.platform,
     browser: r.browser ?? 'default',
     status: r.status,
+    comment: r.comment ?? null,
     executed_by: user.id,
     executed_at: now,
   }));
