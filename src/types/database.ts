@@ -153,6 +153,7 @@ export interface ExecutionResult {
   platform: Platform;
   browser: string;
   status: ExecutionStatus;
+  comment: string | null;
   executed_by: string | null;
   executed_at: string | null;
   duration_ms: number | null;
