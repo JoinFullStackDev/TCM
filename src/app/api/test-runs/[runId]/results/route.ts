@@ -39,6 +39,8 @@ export async function PUT(request: Request, context: RouteContext) {
   if (!parsed.success) return validationError(parsed.error.flatten());
 
   const now = new Date().toISOString();
+  // actual_data_used is stored in execution_results ONLY.
+  // Never add a test_steps write to this handler.
   const rows = parsed.data.results.map((r) => ({
     test_run_id: runId,
     test_case_id: r.test_case_id,
@@ -47,6 +49,7 @@ export async function PUT(request: Request, context: RouteContext) {
     browser: r.browser ?? 'default',
     status: r.status,
     comment: r.comment ?? null,
+    actual_data_used: r.actual_data_used ?? null,   // runtime override; coerced from "" to null at API boundary
     executed_by: user.id,
     executed_at: now,
   }));
@@ -55,7 +58,10 @@ export async function PUT(request: Request, context: RouteContext) {
     .from('execution_results')
     .upsert(rows, { onConflict: 'test_run_id,test_step_id,platform,browser' });
 
-  if (error) return serverError(error.message);
+  if (error) {
+    console.error('[PUT /api/test-runs/results] upsert error:', error);
+    return serverError(error.message);
+  }
 
   return NextResponse.json({ success: true });
 }
