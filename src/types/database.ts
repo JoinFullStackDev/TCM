@@ -154,6 +154,7 @@ export interface ExecutionResult {
   browser: string;
   status: ExecutionStatus;
   comment: string | null;
+  actual_data_used: string | null;   // runtime override; never reflects test_steps.test_data
   executed_by: string | null;
   executed_at: string | null;
   duration_ms: number | null;
