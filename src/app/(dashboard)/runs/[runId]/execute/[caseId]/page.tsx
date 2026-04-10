@@ -143,7 +143,8 @@ export default function ExecuteCasePage() {
       };
     });
 
-    const currentComment = browserResults[stepId]?.[platform]?.[selectedBrowser]?.comment;
+    const currentEntry = browserResults[stepId]?.[platform]?.[selectedBrowser];
+    const currentComment = currentEntry?.comment;
     await fetch(`/api/test-runs/${runId}/results`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -155,6 +156,7 @@ export default function ExecuteCasePage() {
           browser: selectedBrowser,
           status: newStatus,
           comment: comment !== undefined ? comment : currentComment ?? null,
+          actual_data_used: currentEntry?.actual_data_used ?? null,
         }],
       }),
     });

@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import Box from '@mui/material/Box';
 import Table from '@mui/material/Table';
 import TableBody from '@mui/material/TableBody';
@@ -57,6 +58,63 @@ const PLATFORM_LABELS: Record<Platform, string> = {
   tablet: 'Tablet',
   mobile: 'Mobile',
 };
+
+/** Inner component that holds local draft state for "Actual data used" field.
+ *  onChange updates local state only; onBlur commits to parent (which triggers API). */
+function ActualDataField({
+  committed,
+  onCommit,
+}: {
+  committed: string | null | undefined;
+  onCommit: (value: string | null) => void;
+}) {
+  const [draft, setDraft] = useState<string>(committed ?? '');
+
+  // Sync if the committed value changes externally (e.g. another device, initial load)
+  // We only sync when the field is not dirty relative to committed.
+  const committedStr = committed ?? '';
+
+  return (
+    <TextField
+      size="small"
+      multiline
+      minRows={1}
+      maxRows={4}
+      placeholder="Actual data used…"
+      value={draft}
+      onChange={(e) => {
+        setDraft(e.target.value);
+      }}
+      onBlur={() => {
+        const normalized = draft.trim() === '' ? null : draft;
+        if (normalized !== (committedStr === '' ? null : committedStr)) {
+          onCommit(normalized);
+        }
+      }}
+      sx={{
+        mt: 0.75,
+        width: '100%',
+        '& .MuiInputBase-root': {
+          fontSize: '0.7rem',
+          py: 0.5,
+          bgcolor: alpha(palette.warning.main, 0.06),
+          border: `1px solid ${alpha(palette.warning.main, 0.25)}`,
+          borderRadius: '4px',
+        },
+        '& textarea': { resize: 'none' },
+        '& .MuiOutlinedInput-notchedOutline': {
+          borderColor: alpha(palette.warning.main, 0.3),
+        },
+        '&:hover .MuiOutlinedInput-notchedOutline': {
+          borderColor: palette.warning.main,
+        },
+      }}
+      inputProps={{ maxLength: 10000 }}
+      label="Actual data used"
+      InputLabelProps={{ sx: { fontSize: '0.65rem', color: palette.warning.main } }}
+    />
+  );
+}
 
 export default function ExecutionMatrix({
   steps, platforms, results, browsers, selectedBrowser, onBrowserChange, onStatusChange, onCommentChange, onActualDataChange, readOnly,
@@ -170,7 +228,6 @@ export default function ExecutionMatrix({
                 const result = results[step.id]?.[p];
                 const status = result?.status ?? 'not_run';
                 const comment = result?.comment ?? '';
-                const actualDataUsed = result?.actual_data_used ?? '';
                 return (
                   <TableCell key={p} align="center" sx={{ pt: 1.5 }}>
                     <ExecutionStatusCell
@@ -211,46 +268,9 @@ export default function ExecutionMatrix({
                       </Typography>
                     )}
                     {!readOnly && (
-                      <TextField
-                        size="small"
-                        multiline
-                        minRows={1}
-                        maxRows={4}
-                        placeholder="Actual data used…"
-                        value={actualDataUsed}
-                        onChange={(e) => {
-                          // Local optimistic update via parent map — parent handles state
-                          onActualDataChange?.(step.id, p, e.target.value || null);
-                        }}
-                        onBlur={(e) => {
-                          const val = e.target.value;
-                          // Coerce empty string to null before saving (EC-03)
-                          const normalized = val.trim() === '' ? null : val;
-                          if (normalized !== (result?.actual_data_used ?? null)) {
-                            onActualDataChange?.(step.id, p, normalized);
-                          }
-                        }}
-                        sx={{
-                          mt: 0.75,
-                          width: '100%',
-                          '& .MuiInputBase-root': {
-                            fontSize: '0.7rem',
-                            py: 0.5,
-                            bgcolor: alpha(palette.warning.main, 0.06),
-                            border: `1px solid ${alpha(palette.warning.main, 0.25)}`,
-                            borderRadius: '4px',
-                          },
-                          '& textarea': { resize: 'none' },
-                          '& .MuiOutlinedInput-notchedOutline': {
-                            borderColor: alpha(palette.warning.main, 0.3),
-                          },
-                          '&:hover .MuiOutlinedInput-notchedOutline': {
-                            borderColor: palette.warning.main,
-                          },
-                        }}
-                        inputProps={{ maxLength: 10000 }}
-                        label="Actual data used"
-                        InputLabelProps={{ sx: { fontSize: '0.65rem', color: palette.warning.main } }}
+                      <ActualDataField
+                        committed={result?.actual_data_used}
+                        onCommit={(value) => onActualDataChange?.(step.id, p, value)}
                       />
                     )}
                     {readOnly && result?.actual_data_used && (
