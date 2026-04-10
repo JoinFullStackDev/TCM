@@ -26,7 +26,7 @@ import DialogActions from '@mui/material/DialogActions';
 import ExecutionMatrix, { type ResultMap, type BrowserResultMap, type ResultEntry } from '@/components/execution/ExecutionMatrix';
 import AnnotationPanel from '@/components/execution/AnnotationPanel';
 import { useAuth } from '@/components/providers/AuthProvider';
-import type { TestCase, TestStep, ExecutionStatus, Platform, ExecutionResult } from '@/types/database';
+import type { TestCase, TestStep, ExecutionStatus, Platform, ExecutionResult, TestRunCase } from '@/types/database';
 
 export default function ExecuteCasePage() {
   const params = useParams();
@@ -51,16 +51,33 @@ export default function ExecuteCasePage() {
   const readOnly = !can('write');
 
   const fetchData = useCallback(async () => {
-    const [tcRes, runRes, resultsRes] = await Promise.all([
+    const [tcRes, runRes, runCasesRes, resultsRes] = await Promise.all([
       fetch(`/api/test-cases/${caseId}`),
       fetch(`/api/test-runs/${runId}`),
+      fetch(`/api/test-runs/${runId}/cases`),
       fetch(`/api/test-runs/${runId}/results?case_id=${caseId}`),
     ]);
 
     if (tcRes.ok) {
       const tc = await tcRes.json();
       setTestCase(tc);
+
+      // Prefer snapshot_steps from the run case record (EC-02: never re-query live test_steps
+      // after the run starts — snapshot_steps is frozen at run creation time).
+      // Fall back to live test_steps only if snapshot is unavailable (older runs).
+      let snapshotSteps: TestStep[] | null = null;
+      if (runCasesRes.ok) {
+        const runCases: (TestRunCase & { test_cases?: unknown })[] = await runCasesRes.json();
+        const runCase = runCases.find((rc) => rc.test_case_id === caseId);
+        if (runCase?.snapshot_steps && runCase.snapshot_steps.length > 0) {
+          snapshotSteps = (runCase.snapshot_steps as unknown as TestStep[])
+            .slice()
+            .sort((a, b) => a.step_number - b.step_number);
+        }
+      }
+
       setSteps(
+        snapshotSteps ??
         (tc.test_steps ?? []).sort(
           (a: TestStep, b: TestStep) => a.step_number - b.step_number,
         ),
@@ -82,7 +99,12 @@ export default function ExecuteCasePage() {
         browserSet.add(browser);
         if (!bMap[r.test_step_id]) bMap[r.test_step_id] = {};
         if (!bMap[r.test_step_id][r.platform]) bMap[r.test_step_id][r.platform] = {};
-        bMap[r.test_step_id][r.platform][browser] = { status: r.status, id: r.id, comment: r.comment };
+        bMap[r.test_step_id][r.platform][browser] = {
+          status: r.status,
+          id: r.id,
+          comment: r.comment,
+          actual_data_used: r.actual_data_used,
+        };
         if (r.status === 'fail') {
           failedIds[`${r.test_step_id}_${r.platform}_${browser}`] = r.id;
         }
@@ -121,7 +143,8 @@ export default function ExecuteCasePage() {
       };
     });
 
-    const currentComment = browserResults[stepId]?.[platform]?.[selectedBrowser]?.comment;
+    const currentEntry = browserResults[stepId]?.[platform]?.[selectedBrowser];
+    const currentComment = currentEntry?.comment;
     await fetch(`/api/test-runs/${runId}/results`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -133,6 +156,7 @@ export default function ExecuteCasePage() {
           browser: selectedBrowser,
           status: newStatus,
           comment: comment !== undefined ? comment : currentComment ?? null,
+          actual_data_used: currentEntry?.actual_data_used ?? null,
         }],
       }),
     });
@@ -177,6 +201,42 @@ export default function ExecuteCasePage() {
     });
   };
 
+  const handleActualDataChange = async (stepId: string, platform: Platform, value: string | null) => {
+    if (!testCase) return;
+
+    // Optimistic local update
+    setBrowserResults((prev) => {
+      const prev_entry = prev[stepId]?.[platform]?.[selectedBrowser] ?? {} as ResultEntry;
+      return {
+        ...prev,
+        [stepId]: {
+          ...prev[stepId],
+          [platform]: {
+            ...prev[stepId]?.[platform],
+            [selectedBrowser]: { ...prev_entry, actual_data_used: value },
+          },
+        },
+      };
+    });
+
+    const currentEntry = browserResults[stepId]?.[platform]?.[selectedBrowser];
+    await fetch(`/api/test-runs/${runId}/results`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        results: [{
+          test_case_id: caseId,
+          test_step_id: stepId,
+          platform,
+          browser: selectedBrowser,
+          status: currentEntry?.status ?? 'not_run',
+          comment: currentEntry?.comment ?? null,
+          actual_data_used: value,   // null clears the override (EC-03)
+        }],
+      }),
+    });
+  };
+
   const handleAddBrowser = () => {
     const name = newBrowserName.trim();
     if (name && !browsers.includes(name)) {
@@ -192,7 +252,7 @@ export default function ExecuteCasePage() {
     currentResults[stepId] = {};
     for (const [platform, browserMap] of Object.entries(platforms)) {
       const entry = browserMap[selectedBrowser];
-      if (entry) currentResults[stepId][platform] = entry;
+      if (entry) currentResults[stepId][platform] = entry;  // ResultEntry includes actual_data_used
     }
   }
 
@@ -266,6 +326,7 @@ export default function ExecuteCasePage() {
             onBrowserChange={setSelectedBrowser}
             onStatusChange={handleStatusChange}
             onCommentChange={handleCommentChange}
+            onActualDataChange={handleActualDataChange}
             readOnly={readOnly}
           />
         </Box>

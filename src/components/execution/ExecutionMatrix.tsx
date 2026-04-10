@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import Box from '@mui/material/Box';
 import Table from '@mui/material/Table';
 import TableBody from '@mui/material/TableBody';
@@ -21,6 +22,7 @@ export interface ResultEntry {
   status: ExecutionStatus;
   id?: string;
   comment?: string | null;
+  actual_data_used?: string | null;
 }
 
 export interface ResultMap {
@@ -47,6 +49,7 @@ interface ExecutionMatrixProps {
   onBrowserChange?: (browser: string) => void;
   onStatusChange: (stepId: string, platform: Platform, status: ExecutionStatus, comment?: string | null) => void;
   onCommentChange?: (stepId: string, platform: Platform, comment: string) => void;
+  onActualDataChange?: (stepId: string, platform: Platform, value: string | null) => void;
   readOnly?: boolean;
 }
 
@@ -56,8 +59,65 @@ const PLATFORM_LABELS: Record<Platform, string> = {
   mobile: 'Mobile',
 };
 
+/** Inner component that holds local draft state for "Actual data used" field.
+ *  onChange updates local state only; onBlur commits to parent (which triggers API). */
+function ActualDataField({
+  committed,
+  onCommit,
+}: {
+  committed: string | null | undefined;
+  onCommit: (value: string | null) => void;
+}) {
+  const [draft, setDraft] = useState<string>(committed ?? '');
+
+  // Sync if the committed value changes externally (e.g. another device, initial load)
+  // We only sync when the field is not dirty relative to committed.
+  const committedStr = committed ?? '';
+
+  return (
+    <TextField
+      size="small"
+      multiline
+      minRows={1}
+      maxRows={4}
+      placeholder="Actual data used…"
+      value={draft}
+      onChange={(e) => {
+        setDraft(e.target.value);
+      }}
+      onBlur={() => {
+        const normalized = draft.trim() === '' ? null : draft;
+        if (normalized !== (committedStr === '' ? null : committedStr)) {
+          onCommit(normalized);
+        }
+      }}
+      sx={{
+        mt: 0.75,
+        width: '100%',
+        '& .MuiInputBase-root': {
+          fontSize: '0.7rem',
+          py: 0.5,
+          bgcolor: alpha(palette.warning.main, 0.06),
+          border: `1px solid ${alpha(palette.warning.main, 0.25)}`,
+          borderRadius: '4px',
+        },
+        '& textarea': { resize: 'none' },
+        '& .MuiOutlinedInput-notchedOutline': {
+          borderColor: alpha(palette.warning.main, 0.3),
+        },
+        '&:hover .MuiOutlinedInput-notchedOutline': {
+          borderColor: palette.warning.main,
+        },
+      }}
+      inputProps={{ maxLength: 10000 }}
+      label="Actual data used"
+      InputLabelProps={{ sx: { fontSize: '0.65rem', color: palette.warning.main } }}
+    />
+  );
+}
+
 export default function ExecutionMatrix({
-  steps, platforms, results, browsers, selectedBrowser, onBrowserChange, onStatusChange, onCommentChange, readOnly,
+  steps, platforms, results, browsers, selectedBrowser, onBrowserChange, onStatusChange, onCommentChange, onActualDataChange, readOnly,
 }: ExecutionMatrixProps) {
   return (
     <Box>
@@ -156,7 +216,7 @@ export default function ExecutionMatrix({
                     }}
                   >
                     <Typography variant="caption" sx={{ fontWeight: 600, color: palette.info.main }}>
-                      Test Data:
+                      Expected data:
                     </Typography>
                     <Typography variant="caption" sx={{ color: 'text.primary', ml: 0.5 }}>
                       {step.test_data}
@@ -206,6 +266,32 @@ export default function ExecutionMatrix({
                       >
                         {comment}
                       </Typography>
+                    )}
+                    {!readOnly && (
+                      <ActualDataField
+                        committed={result?.actual_data_used}
+                        onCommit={(value) => onActualDataChange?.(step.id, p, value)}
+                      />
+                    )}
+                    {readOnly && result?.actual_data_used && (
+                      <Box
+                        sx={{
+                          mt: 0.5,
+                          px: 1,
+                          py: 0.25,
+                          borderRadius: '4px',
+                          bgcolor: alpha(palette.warning.main, 0.08),
+                          border: `1px solid ${alpha(palette.warning.main, 0.25)}`,
+                          textAlign: 'left',
+                        }}
+                      >
+                        <Typography variant="caption" sx={{ fontWeight: 600, color: palette.warning.main, display: 'block' }}>
+                          Actual used:
+                        </Typography>
+                        <Typography variant="caption" sx={{ color: 'text.primary' }}>
+                          {result.actual_data_used}
+                        </Typography>
+                      </Box>
                     )}
                   </TableCell>
                 );
