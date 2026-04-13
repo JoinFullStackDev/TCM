@@ -87,6 +87,100 @@ function toStepData(steps: StepWithStatus[]): StepData[] {
   }));
 }
 
+// ─── EditableCell ────────────────────────────────────────────────────────────
+// Holds its own local draft value so every keystroke does NOT propagate up to
+// the parent (fixing the focus-fight / dropped-character bugs). Commits to the
+// parent only on blur or Enter (Shift+Enter preserved for newlines).
+interface EditableCellProps {
+  field: EditingField['field'];
+  value: string | null;
+  isEditing: boolean;
+  index: number;
+  canWrite: boolean;
+  onStartEdit: (index: number, field: EditingField['field']) => void;
+  onFieldChange: (index: number, field: string, value: string | boolean) => void;
+  onCommitEdit: () => void;
+}
+
+function EditableCell({
+  field,
+  value,
+  isEditing,
+  index,
+  canWrite,
+  onStartEdit,
+  onFieldChange,
+  onCommitEdit,
+}: EditableCellProps) {
+  const [localValue, setLocalValue] = useState(value ?? '');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Fix 1a: Sync prop → local only when NOT actively editing.
+  // This prevents the debounce/parent-update from stomping in-progress edits.
+  useEffect(() => {
+    if (!isEditing) setLocalValue(value ?? '');
+  }, [value, isEditing]);
+
+  // Fix 2: Focus via ref+effect instead of autoFocus.
+  // autoFocus re-runs on every re-render; this runs only when isEditing flips true.
+  useEffect(() => {
+    if (isEditing) inputRef.current?.focus();
+  }, [isEditing]);
+
+  if (canWrite && isEditing) {
+    return (
+      <TextField
+        value={localValue}
+        // Fix 1b: onChange updates only local draft — no parent call on every keystroke.
+        onChange={(e) => setLocalValue(e.target.value)}
+        // Fix 1c: Commit on blur.
+        onBlur={() => {
+          onFieldChange(index, field, localValue);
+          onCommitEdit();
+        }}
+        onKeyDown={(e) => {
+          // Fix 1d: Commit on Enter (Shift+Enter preserved for newlines).
+          if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            onFieldChange(index, field, localValue);
+            onCommitEdit();
+          }
+          if (e.key === 'Escape') onCommitEdit();
+        }}
+        size="small"
+        multiline
+        maxRows={4}
+        fullWidth
+        variant="standard"
+        inputRef={inputRef}
+        slotProps={{ input: { sx: { fontSize: '0.75rem', py: 0 } } }}
+      />
+    );
+  }
+
+  const display = value || '';
+  return (
+    <Typography
+      variant="caption"
+      onClick={canWrite ? () => onStartEdit(index, field) : undefined}
+      sx={{
+        fontSize: '0.75rem',
+        color: display ? 'text.primary' : 'text.disabled',
+        cursor: canWrite ? 'text' : 'default',
+        display: 'block',
+        minHeight: 20,
+        whiteSpace: 'pre-wrap',
+        wordBreak: 'break-word',
+        '&:hover': canWrite ? { bgcolor: alpha(palette.primary.main, 0.06), borderRadius: '4px', px: 0.5, mx: -0.5 } : {},
+      }}
+    >
+      {display || '—'}
+    </Typography>
+  );
+}
+
+// ─── SortableStepRow ─────────────────────────────────────────────────────────
+
 interface SortableStepRowProps {
   step: StepWithStatus;
   index: number;
@@ -135,53 +229,6 @@ function SortableStepRow({
   const isEditingData = editingField?.index === index && editingField.field === 'test_data';
   const isEditingExpected = editingField?.index === index && editingField.field === 'expected_result';
 
-  const renderTextCell = (
-    field: EditingField['field'],
-    value: string | null,
-    isEditing: boolean,
-  ) => {
-    if (canWrite && isEditing) {
-      return (
-        <TextField
-          value={value ?? ''}
-          onChange={(e) => onFieldChange(index, field, e.target.value)}
-          onBlur={onCommitEdit}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); onCommitEdit(); }
-            if (e.key === 'Escape') onCommitEdit();
-          }}
-          size="small"
-          multiline
-          maxRows={4}
-          fullWidth
-          autoFocus
-          variant="standard"
-          slotProps={{ input: { sx: { fontSize: '0.75rem', py: 0 } } }}
-        />
-      );
-    }
-
-    const display = value || '';
-    return (
-      <Typography
-        variant="caption"
-        onClick={canWrite ? () => onStartEdit(index, field) : undefined}
-        sx={{
-          fontSize: '0.75rem',
-          color: display ? 'text.primary' : 'text.disabled',
-          cursor: canWrite ? 'text' : 'default',
-          display: 'block',
-          minHeight: 20,
-          whiteSpace: 'pre-wrap',
-          wordBreak: 'break-word',
-          '&:hover': canWrite ? { bgcolor: alpha(palette.primary.main, 0.06), borderRadius: '4px', px: 0.5, mx: -0.5 } : {},
-        }}
-      >
-        {display || '—'}
-      </Typography>
-    );
-  };
-
   return (
     <TableRow
       ref={setNodeRef}
@@ -226,19 +273,47 @@ function SortableStepRow({
       </TableCell>
 
       <TableCell sx={{ width: 280, wordBreak: 'break-word', whiteSpace: 'normal' }}>
-        {renderTextCell('description', step.description, isEditingDesc)}
+        <EditableCell
+          field="description"
+          value={step.description}
+          isEditing={isEditingDesc}
+          index={index}
+          canWrite={canWrite}
+          onStartEdit={onStartEdit}
+          onFieldChange={onFieldChange}
+          onCommitEdit={onCommitEdit}
+        />
       </TableCell>
 
       <TableCell sx={{ width: 180, wordBreak: 'break-word', whiteSpace: 'normal' }}>
-        {renderTextCell('test_data', step.test_data, isEditingData)}
+        <EditableCell
+          field="test_data"
+          value={step.test_data}
+          isEditing={isEditingData}
+          index={index}
+          canWrite={canWrite}
+          onStartEdit={onStartEdit}
+          onFieldChange={onFieldChange}
+          onCommitEdit={onCommitEdit}
+        />
       </TableCell>
 
       <TableCell sx={{ width: 180, wordBreak: 'break-word', whiteSpace: 'normal' }}>
-        {renderTextCell('expected_result', step.expected_result, isEditingExpected)}
+        <EditableCell
+          field="expected_result"
+          value={step.expected_result}
+          isEditing={isEditingExpected}
+          index={index}
+          canWrite={canWrite}
+          onStartEdit={onStartEdit}
+          onFieldChange={onFieldChange}
+          onCommitEdit={onCommitEdit}
+        />
       </TableCell>
 
       {canWrite && (
         <TableCell sx={{ width: 40 }}>
+          {/* Switch commits directly — no local-state pattern needed here */}
           <Switch
             checked={step.is_automation_only}
             onChange={(e) => onFieldChange(index, 'is_automation_only', e.target.checked)}
@@ -326,6 +401,9 @@ export default function StepDetailPanel({
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Fix 4: Stable temp IDs — counter ref prevents ID churn between renders.
+  const tempIdCounter = useRef(0);
+
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
   const [menuContext, setMenuContext] = useState<{ stepId: string; platform: Platform } | null>(null);
   const [noRunWarning, setNoRunWarning] = useState(false);
@@ -334,13 +412,17 @@ export default function StepDetailPanel({
     steps.map((s) => `${s.id}:${JSON.stringify(s.step_status ?? {})}`).join(',');
 
   const propsKeyRef = useRef(buildKey(propSteps));
+
+  // Fix 3: Guard propSteps → localSteps sync against active edits.
+  // Without this guard, the debounce firing causes propSteps to change, which
+  // re-syncs localSteps and clobbers whatever the user is currently typing.
   useEffect(() => {
     const newKey = buildKey(propSteps);
-    if (newKey !== propsKeyRef.current) {
+    if (newKey !== propsKeyRef.current && editingField === null) {
       propsKeyRef.current = newKey;
       setLocalSteps(propSteps);
     }
-  }, [propSteps]);
+  }, [propSteps, editingField]);
 
   const triggerSave = useCallback(
     (steps: StepWithStatus[]) => {
@@ -408,10 +490,13 @@ export default function StepDetailPanel({
   );
 
   const handleAdd = useCallback(() => {
+    // Capture the new step's index before the state update.
+    const newIndex = localSteps.length;
     updateSteps((prev) => [
       ...prev,
       {
-        id: `temp-${Date.now()}`,
+        // Fix 4: Use counter ref — stable across re-renders unlike Date.now().
+        id: `temp-${++tempIdCounter.current}`,
         step_number: prev.length + 1,
         description: '',
         test_data: null,
@@ -419,13 +504,17 @@ export default function StepDetailPanel({
         is_automation_only: false,
       },
     ]);
-  }, [updateSteps]);
+    // Auto-focus the description field of the newly added step.
+    setEditingField({ index: newIndex, field: 'description' });
+  }, [updateSteps, localSteps.length]);
 
   const handleInsertBelow = useCallback(
     (index: number) => {
+      const newIndex = index + 1;
       updateSteps((prev) => {
         const newStep: StepWithStatus = {
-          id: `temp-${Date.now()}`,
+          // Fix 4: Use counter ref — stable across re-renders unlike Date.now().
+          id: `temp-${++tempIdCounter.current}`,
           step_number: index + 2,
           description: '',
           test_data: null,
@@ -436,6 +525,8 @@ export default function StepDetailPanel({
         copy.splice(index + 1, 0, newStep);
         return copy.map((s, i) => ({ ...s, step_number: i + 1 }));
       });
+      // Auto-focus the description field of the newly inserted step.
+      setEditingField({ index: newIndex, field: 'description' });
     },
     [updateSteps],
   );
