@@ -57,7 +57,7 @@ function applyTitleRow(
 
   // Cols A–B merged: "Test Case Title display_id"
   const titleCell = row.getCell(1);
-  titleCell.value = `${tc.title} ${tc.display_id}`;
+  titleCell.value = guardForExcel(`${tc.title} ${tc.display_id}`);
   titleCell.font = { bold: true };
   titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: colorArgb } };
   titleCell.alignment = { vertical: 'middle', wrapText: true };
@@ -65,7 +65,7 @@ function applyTitleRow(
 
   // Col C: automation_status label
   const statusCell = row.getCell(3);
-  statusCell.value = getAutomationLabel(tc.automation_status);
+  statusCell.value = guardForExcel(getAutomationLabel(tc.automation_status));
   statusCell.font = { bold: true };
   statusCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: colorArgb } };
   statusCell.alignment = { vertical: 'middle', wrapText: true };
@@ -242,8 +242,7 @@ export async function buildExcel(snapshot: ExportSnapshot): Promise<ArrayBuffer>
   addIndexSheet(wb, snapshot);
 
   // Deduplicate tab names across all suites
-  const rawNames = snapshot.suites.map((s) => truncateTabName(s.name));
-  const tabNames = deduplicateTabNames(rawNames.map((_, i) => snapshot.suites[i].name));
+  const tabNames = deduplicateTabNames(snapshot.suites.map((s) => s.name));
 
   for (let i = 0; i < snapshot.suites.length; i++) {
     addSuiteSheet(wb, snapshot.suites[i], tabNames[i]);
