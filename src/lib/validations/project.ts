@@ -9,6 +9,7 @@ export const updateProjectSchema = z.object({
   name: z.string().trim().min(1).max(100).optional(),
   description: z.string().trim().max(1000).nullable().optional(),
   is_archived: z.boolean().optional(),
+  export_allowed_roles: z.array(z.string()).optional(),
 });
 
 export type CreateProjectInput = z.infer<typeof createProjectSchema>;

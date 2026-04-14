@@ -45,6 +45,7 @@ import GridToolbar, { type SaveStatus, type TestRunOption } from '@/components/t
 import TriggerAutomatedRunDialog from '@/components/test-runs/TriggerAutomatedRunDialog';
 import { useAuth } from '@/components/providers/AuthProvider';
 import type { Project, Suite, TestCase, ExecutionStatus, Platform, Integration } from '@/types/database';
+import ExportButton from '@/components/export/ExportButton';
 
 interface SuiteWithCount extends Suite {
   test_case_count: number;
@@ -550,6 +551,11 @@ export default function ProjectDetailPage() {
               New Suite
             </Button>
           )}
+
+          <ExportButton
+            projectId={projectId}
+            projectName={project.name}
+          />
         </Box>
 
         {project.description && (

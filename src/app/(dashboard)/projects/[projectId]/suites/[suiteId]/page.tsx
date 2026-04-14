@@ -26,6 +26,7 @@ import EmptyState from '@/components/common/EmptyState';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { semanticColors } from '@/theme/palette';
 import type { Project, Suite, TestCase, ExecutionStatus, Platform } from '@/types/database';
+import ExportButton from '@/components/export/ExportButton';
 
 interface ColumnConfig {
   columnOrder?: string[];
@@ -484,6 +485,13 @@ export default function SuiteViewPage() {
               New Test Case
             </Button>
           )}
+
+          <ExportButton
+            projectId={projectId}
+            projectName={project.name}
+            suiteId={suiteId}
+            suiteName={suite.name}
+          />
         </Box>
 
         {suite.description && (
