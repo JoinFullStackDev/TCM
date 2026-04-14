@@ -13,6 +13,7 @@ import { useAuth } from '@/components/providers/AuthProvider';
 import { ROLE_LABELS } from '@/lib/auth/rbac';
 import { palette, semanticColors } from '@/theme/palette';
 import NotesDataGrid from '@/components/notes/NotesDataGrid';
+import GoogleConnectStatus from '@/components/export/GoogleConnectStatus';
 
 export default function ProfilePage() {
   const { profile, role } = useAuth();
@@ -112,6 +113,13 @@ export default function ProfilePage() {
                   : 'N/A'
               }
             />
+          </Box>
+
+          <Box sx={{ mt: 3, pt: 3, borderTop: `1px solid ${palette.divider}` }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1.5 }}>
+              Connected Accounts
+            </Typography>
+            <GoogleConnectStatus />
           </Box>
         </Paper>
       )}
