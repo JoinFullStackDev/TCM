@@ -1,4 +1,9 @@
 import { NextResponse } from 'next/server';
+
+function safeReturnTo(value: string): string {
+  if (value.startsWith('/') && !value.startsWith('//')) return value;
+  return '/';
+}
 import { createClient } from '@/lib/supabase/server';
 import { exchangeCode } from '@/lib/google/oauth';
 import { storeToken } from '@/lib/google/tokenStore';
@@ -32,7 +37,7 @@ export async function GET(request: Request) {
 
     // Clear the CSRF cookie
     cookieStore.delete('google_oauth_csrf');
-    returnTo = state.returnTo;
+    returnTo = safeReturnTo(state.returnTo);
   } catch {
     return NextResponse.redirect(`${baseUrl}/?google_error=invalid_state`);
   }

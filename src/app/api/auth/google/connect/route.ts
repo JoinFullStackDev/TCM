@@ -4,12 +4,18 @@ import { generateAuthUrl } from '@/lib/google/oauth';
 import { randomBytes } from 'crypto';
 import { cookies } from 'next/headers';
 
+function safeReturnTo(value: string): string {
+  if (value.startsWith('/') && !value.startsWith('//')) return value;
+  return '/';
+}
+
 export async function GET(request: Request) {
   const auth = await withAuth('export');
   if (!auth.ok) return auth.response;
 
   const { searchParams } = new URL(request.url);
-  const returnTo = searchParams.get('return_to') ?? '/';
+  const rawReturnTo = searchParams.get('return_to') ?? '/';
+  const returnTo = safeReturnTo(rawReturnTo);
 
   // Generate CSRF token and store in a short-lived cookie
   const csrfToken = randomBytes(32).toString('hex');
