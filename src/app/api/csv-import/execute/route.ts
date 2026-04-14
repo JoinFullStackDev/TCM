@@ -165,18 +165,18 @@ export async function POST(request: Request) {
             continue;
           }
 
-          const { error: deleteErr } = await supabase
-            .from('test_steps')
-            .delete()
-            .eq('test_case_id', existingCase.id);
-
-          if (deleteErr) {
-            errors.push({ row_number: globalIdx + 1, error_message: `Failed to delete old steps for ${tc.display_id}: ${deleteErr.message}` });
-            errorCount++;
-            continue;
-          }
-
           if (tc.steps.length > 0) {
+            const { error: deleteErr } = await supabase
+              .from('test_steps')
+              .delete()
+              .eq('test_case_id', existingCase.id);
+
+            if (deleteErr) {
+              errors.push({ row_number: globalIdx + 1, error_message: `Failed to delete old steps for ${tc.display_id}: ${deleteErr.message}` });
+              errorCount++;
+              continue;
+            }
+
             const { error: stepErr } = await insertSteps(supabase, existingCase.id, tc.steps);
             if (stepErr) {
               errors.push({ row_number: globalIdx + 1, error_message: `Steps deleted but new steps failed for ${tc.display_id}: ${stepErr}` });
