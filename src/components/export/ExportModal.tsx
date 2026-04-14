@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
@@ -44,6 +44,23 @@ export default function ExportModal({
   const [format, setFormat] = useState<ExportFormat | null>(null);
   const [modalState, setModalState] = useState<ModalState>('idle');
   const [result, setResult] = useState<ExportResult | null>(null);
+
+  // Restore export intent that was stored before the Google OAuth redirect
+  useEffect(() => {
+    if (!open) return;
+    try {
+      const raw = sessionStorage.getItem('export_intent');
+      if (raw) {
+        sessionStorage.removeItem('export_intent');
+        const intent = JSON.parse(raw) as { format?: string };
+        if (intent.format === 'xlsx' || intent.format === 'google_sheets') {
+          setFormat(intent.format);
+        }
+      }
+    } catch {
+      // corrupt storage value — ignore
+    }
+  }, [open]);
 
   const handleClose = () => {
     // Reset state on close
