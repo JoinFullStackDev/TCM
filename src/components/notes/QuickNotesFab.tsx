@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useCallback, useRef, useEffect } from 'react';
-import Draggable, { DraggableData, DraggableEvent } from 'react-draggable';
 import Box from '@mui/material/Box';
 import Fab from '@mui/material/Fab';
 import Paper from '@mui/material/Paper';
@@ -62,31 +61,57 @@ export default function QuickNotesFab() {
 
   const canWrite = can('write');
 
-  // Draggable: track position in state so panel always opens above the FAB
+  // --- Drag-to-reposition (no library, raw pointer events) ---
   const FAB_SIZE = 56;
   const MARGIN = 24;
-  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
-  const dragNodeRef = useRef<HTMLDivElement>(null);
-  const isDragging = useRef(false);
+
+  // pos is in "right/bottom" terms to match CSS fixed positioning intuitively
+  const [pos, setPos] = useState<{ right: number; bottom: number } | null>(null);
+  const fabRef = useRef<HTMLDivElement>(null);
+  const dragState = useRef<{ startX: number; startY: number; startRight: number; startBottom: number } | null>(null);
+  const didDrag = useRef(false);
 
   useEffect(() => {
-    // Compute bottom-right default in fixed coords: x = distance from left, y = distance from top
-    setPos({
-      x: window.innerWidth - MARGIN - FAB_SIZE,
-      y: window.innerHeight - MARGIN - FAB_SIZE,
-    });
+    setPos({ right: MARGIN, bottom: MARGIN });
   }, []);
 
-  const handleDragStart = useCallback(() => {
-    isDragging.current = false;
+  const handlePointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    // Only drag on primary button, ignore clicks inside the panel
+    if (e.button !== 0) return;
+    didDrag.current = false;
+    const fab = fabRef.current;
+    if (!fab) return;
+    fab.setPointerCapture(e.pointerId);
+    const rect = fab.getBoundingClientRect();
+    dragState.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      startRight: window.innerWidth - rect.right,
+      startBottom: window.innerHeight - rect.bottom,
+    };
+    e.stopPropagation();
   }, []);
 
-  const handleDrag = useCallback(() => {
-    isDragging.current = true;
+  const handlePointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (!dragState.current) return;
+    const dx = e.clientX - dragState.current.startX;
+    const dy = e.clientY - dragState.current.startY;
+    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) didDrag.current = true;
+    if (!didDrag.current) return;
+
+    const newRight = Math.max(0, Math.min(
+      window.innerWidth - FAB_SIZE,
+      dragState.current.startRight - dx,
+    ));
+    const newBottom = Math.max(0, Math.min(
+      window.innerHeight - FAB_SIZE,
+      dragState.current.startBottom - dy,
+    ));
+    setPos({ right: newRight, bottom: newBottom });
   }, []);
 
-  const handleDragStop = useCallback((_e: DraggableEvent, data: DraggableData) => {
-    setPos({ x: data.x, y: data.y });
+  const handlePointerUp = useCallback(() => {
+    dragState.current = null;
   }, []);
 
   const resetForm = useCallback(() => {
@@ -251,30 +276,26 @@ export default function QuickNotesFab() {
   }, []);
 
   if (!canWrite) return null;
-  if (!pos) return null; // wait for client-side position
+  if (!pos) return null; // wait for client-side mount
 
   return (
     <>
-      <Draggable
-        nodeRef={dragNodeRef}
-        position={pos}
-        onStart={handleDragStart}
-        onDrag={handleDrag}
-        onStop={handleDragStop}
-        bounds="window"
-      >
-      {/* Outer wrapper: position:fixed at top:0,left:0; Draggable applies translate(x,y) */}
+      {/* Outer container: fixed position, drag handle */}
       <Box
-        ref={dragNodeRef}
+        ref={fabRef}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
         sx={{
           position: 'fixed',
-          top: 0,
-          left: 0,
+          right: `${pos.right}px`,
+          bottom: `${pos.bottom}px`,
           zIndex: 1200,
           width: `${FAB_SIZE}px`,
           height: `${FAB_SIZE}px`,
-          cursor: 'grab',
-          '&:active': { cursor: 'grabbing' },
+          cursor: didDrag.current ? 'grabbing' : 'grab',
+          touchAction: 'none',
+          userSelect: 'none',
         }}
       >
         {/* Panel: positioned absolutely above/beside the FAB so it never goes off-screen */}
@@ -582,8 +603,7 @@ export default function QuickNotesFab() {
         <Fab
           color="primary"
           onClick={() => {
-            // Don't toggle panel if the user was dragging
-            if (!isDragging.current) setPanelOpen((o) => !o);
+            if (!didDrag.current) setPanelOpen((o) => !o);
           }}
           sx={{
             position: 'absolute',
@@ -593,12 +613,12 @@ export default function QuickNotesFab() {
             height: `${FAB_SIZE}px`,
             boxShadow: `0 4px 20px ${alpha(palette.primary.main, 0.35)}`,
             cursor: 'inherit',
+            pointerEvents: 'auto',
           }}
         >
           {panelOpen ? <CloseIcon /> : <EditNoteIcon />}
         </Fab>
       </Box>
-      </Draggable>
 
       <Snackbar
         open={toast}
