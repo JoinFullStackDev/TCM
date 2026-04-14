@@ -100,7 +100,12 @@ function buildIndexSheet(snapshot: ExportSnapshot, sheetId: number): SheetData {
   return { sheetId, title: 'Summary', rowData, merges: [], colorRequests, boldRequests };
 }
 
-function buildSuiteSheet(suite: ExportSuite, sheetId: number, tabName: string): SheetData {
+function buildSuiteSheet(
+  suite: ExportSuite,
+  sheetId: number,
+  tabName: string,
+  annotationMap?: Record<string, string>,
+): SheetData {
   const rowData: object[] = [];
   const merges: object[] = [];
   const colorRequests: object[] = [];
@@ -211,7 +216,7 @@ function buildSuiteSheet(suite: ExportSuite, sheetId: number, tabName: string): 
           emptyCell(),
           emptyCell(),
           sv(automationLabel),
-          emptyCell(),
+          emptyCell(), // No step id available for no-step rows
           sv(firstBugUrl),
         ],
       });
@@ -229,7 +234,7 @@ function buildSuiteSheet(suite: ExportSuite, sheetId: number, tabName: string): 
             sv(step.expected_result ?? ''),
             emptyCell(), // Pass/Fail blank (GAP-04)
             sv(automationLabel), // Added to code (GAP-02)
-            emptyCell(), // Comments blank (GAP-03)
+            sv(annotationMap?.[step.id] ?? ''), // Comments (HIGH-03)
             sv(firstBugUrl),
           ],
         });
@@ -323,7 +328,7 @@ export async function buildGoogleSheets(
 
   // Suite sheets
   for (let i = 0; i < snapshot.suites.length; i++) {
-    allSheetData.push(buildSuiteSheet(snapshot.suites[i], i + 1, suiteTabNames[i]));
+    allSheetData.push(buildSuiteSheet(snapshot.suites[i], i + 1, suiteTabNames[i], snapshot.annotationMap));
   }
 
   // Step 3: Add sheets (skip the default sheet for summary, just rename it)

@@ -1,14 +1,14 @@
 import { NextResponse } from 'next/server';
 import { withAuth, notFound, serverError } from '@/lib/api/helpers';
 import { createServiceClient } from '@/lib/supabase/server';
-import { fetchProjectSnapshot, countProjectTestCases } from '@/lib/export/fetchExportSnapshot';
+import { fetchProjectSnapshot, countProjectTestCases, fetchAnnotationMap } from '@/lib/export/fetchExportSnapshot';
 import { buildExcel } from '@/lib/export/buildExcel';
 import { buildGoogleSheets } from '@/lib/export/buildGoogleSheets';
 import { buildFilename } from '@/lib/export/sanitizeFilename';
 import { getValidAccessToken } from '@/lib/google/tokenStore';
+import { runAsyncExport } from '@/lib/export/runAsyncExport';
 
-// GAP-08/09: Sync path only for ≤500 test cases.
-// For >500, return a clear error. Async Edge Function path is not implemented — TODO: async export.
+// Sync path for ≤500 test cases. For >500, dispatch an async job (HIGH-05/GAP-08/09).
 const SYNC_THRESHOLD = 500;
 
 export async function POST(
@@ -54,23 +54,59 @@ export async function POST(
     testCaseCount = await countProjectTestCases(projectId);
 
     if (testCaseCount > SYNC_THRESHOLD) {
-      // GAP-08: Async export not implemented — return clear error
-      const msg = 'Project is too large for synchronous export. Async export coming soon.';
-      await writeAuditLog({
+      // For Google Sheets, verify auth before queuing so we fail fast
+      if (format === 'google_sheets') {
+        try {
+          await getValidAccessToken(user.id);
+        } catch (err: unknown) {
+          const errMsg = (err as Error).message;
+          if (errMsg === 'NOT_CONNECTED') {
+            return NextResponse.json({ error: 'google_not_connected' }, { status: 401 });
+          }
+          if (errMsg === 'TOKEN_REVOKED') {
+            return NextResponse.json({ error: 'google_reauth_required' }, { status: 401 });
+          }
+          throw err;
+        }
+      }
+
+      // Create async export job (HIGH-05)
+      const { data: job, error: jobError } = await supabase
+        .from('export_jobs')
+        .insert({
+          user_id: user.id,
+          project_id: projectId,
+          suite_id: null,
+          format,
+          scope: 'project',
+          status: 'pending',
+          test_case_count: testCaseCount,
+        })
+        .select('id')
+        .single();
+
+      if (jobError || !job) {
+        return serverError('Failed to create export job.');
+      }
+
+      // Fire-and-forget — response is already sent (202 below)
+      runAsyncExport({
+        jobId: job.id,
         userId: user.id,
         projectId,
-        suiteId: null,
-        format,
+        projectName: project.name as string,
+        format: format as 'xlsx' | 'google_sheets',
         scope: 'project',
-        status: 'failed',
         testCaseCount,
-        errorMsg: msg,
-        request,
-      });
-      return NextResponse.json({ error: msg }, { status: 422 });
+        ipAddress: request.headers.get('x-forwarded-for'),
+        userAgent: request.headers.get('user-agent'),
+      }).catch((err) => console.error('[export/project async] unhandled:', err));
+
+      return NextResponse.json({ jobId: job.id, async: true }, { status: 202 });
     }
 
     const snapshot = await fetchProjectSnapshot(projectId);
+    snapshot.annotationMap = await fetchAnnotationMap(projectId);
 
     if (format === 'xlsx') {
       const buffer = await buildExcel(snapshot);

@@ -86,6 +86,7 @@ function writeStepRows(
   ws: ExcelJS.Worksheet,
   startRow: number,
   tc: ExportTestCase,
+  annotationMap?: Record<string, string>,
 ): number {
   const steps = tc.steps ?? [];
   const firstBugUrl = tc.bug_links?.[0]?.url ?? '';
@@ -121,7 +122,7 @@ function writeStepRows(
     row.getCell(7).value = guardForExcel(step.expected_result);
     row.getCell(8).value = ''; // Pass/Fail — always blank (GAP-04)
     row.getCell(9).value = guardForExcel(automationLabel); // Added to code (GAP-02)
-    row.getCell(10).value = ''; // Comments — blank (GAP-03: no run annotations at export time)
+    row.getCell(10).value = guardForExcel(annotationMap?.[step.id] ?? ''); // Comments (HIGH-03)
     row.getCell(11).value = guardForExcel(firstBugUrl);
 
     for (let c = 1; c <= COLUMNS.length; c++) {
@@ -147,6 +148,7 @@ function addSuiteSheet(
   wb: ExcelJS.Workbook,
   suite: ExportSuite,
   tabName: string,
+  annotationMap?: Record<string, string>,
 ): void {
   const ws = wb.addWorksheet(tabName);
 
@@ -181,7 +183,7 @@ function addSuiteSheet(
     currentRow++;
 
     // Step rows
-    currentRow = writeStepRows(ws, currentRow, tc);
+    currentRow = writeStepRows(ws, currentRow, tc, annotationMap);
 
     // Blank separator row
     ws.getRow(currentRow).commit();
@@ -245,7 +247,7 @@ export async function buildExcel(snapshot: ExportSnapshot): Promise<ArrayBuffer>
   const tabNames = deduplicateTabNames(snapshot.suites.map((s) => s.name));
 
   for (let i = 0; i < snapshot.suites.length; i++) {
-    addSuiteSheet(wb, snapshot.suites[i], tabNames[i]);
+    addSuiteSheet(wb, snapshot.suites[i], tabNames[i], snapshot.annotationMap);
   }
 
   const buffer = await wb.xlsx.writeBuffer();
