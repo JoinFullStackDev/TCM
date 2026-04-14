@@ -112,6 +112,8 @@ export default function QuickNotesFab() {
 
   const handlePointerUp = useCallback(() => {
     dragState.current = null;
+    // Reset after a short delay so the onClick handler can read the value first
+    setTimeout(() => { didDrag.current = false; }, 0);
   }, []);
 
   const resetForm = useCallback(() => {
