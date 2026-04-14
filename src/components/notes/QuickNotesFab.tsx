@@ -74,6 +74,8 @@ export default function QuickNotesFab() {
     startRight: number; startBottom: number;
     dragging: boolean;
   } | null>(null);
+  // Stays true from drag-end until after the click event fires, then resets
+  const justDragged = useRef(false);
 
   useEffect(() => {
     setPos({ right: MARGIN, bottom: MARGIN });
@@ -108,6 +110,12 @@ export default function QuickNotesFab() {
     };
 
     const onMouseUp = () => {
+      if (dragState.current?.dragging) {
+        // Mark that we just finished a drag; click fires after mouseup so we
+        // need this flag to still be true when onClick runs.
+        justDragged.current = true;
+        setTimeout(() => { justDragged.current = false; }, 0);
+      }
       dragState.current = null;
     };
 
@@ -604,7 +612,7 @@ export default function QuickNotesFab() {
 
         <Fab
           color="primary"
-          onClick={() => setPanelOpen((o) => !o)}
+          onClick={() => { if (!justDragged.current) setPanelOpen((o) => !o); }}
           sx={{
             position: 'absolute',
             top: 0,
