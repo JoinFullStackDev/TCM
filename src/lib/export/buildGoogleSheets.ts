@@ -358,16 +358,19 @@ export async function buildGoogleSheets(
   // Step 4: Write cell data per sheet
   const valueRanges = allSheetData
     .filter((sd) => sd.rowData.length > 0)
-    .map((sd) => ({
-      range: `'${sd.title}'!A1`,
-      values: sd.rowData.map((row: object) =>
-        ((row as { values: Array<{ userEnteredValue: { stringValue?: string; numberValue?: number } }> }).values ?? []).map((cell) => {
-          const v = cell.userEnteredValue;
-          if (v.numberValue !== undefined) return v.numberValue;
-          return v.stringValue ?? '';
-        }),
-      ),
-    }));
+    .map((sd) => {
+      const escapedTitle = sd.title.replace(/'/g, "''");
+      return {
+        range: `'${escapedTitle}'!A1`,
+        values: sd.rowData.map((row: object) =>
+          ((row as { values: Array<{ userEnteredValue: { stringValue?: string; numberValue?: number } }> }).values ?? []).map((cell) => {
+            const v = cell.userEnteredValue;
+            if (v.numberValue !== undefined) return v.numberValue;
+            return v.stringValue ?? '';
+          }),
+        ),
+      };
+    });
 
   if (valueRanges.length > 0) {
     await sheets.spreadsheets.values.batchUpdate({
