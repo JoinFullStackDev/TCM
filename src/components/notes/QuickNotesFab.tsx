@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
+import Draggable, { DraggableData, DraggableEvent } from 'react-draggable';
 import Box from '@mui/material/Box';
 import Fab from '@mui/material/Fab';
 import Paper from '@mui/material/Paper';
@@ -60,6 +61,20 @@ export default function QuickNotesFab() {
   const [tcSearchLoading, setTcSearchLoading] = useState(false);
 
   const canWrite = can('write');
+
+  // Draggable position — default bottom-right (computed on mount to avoid SSR mismatch)
+  const [defaultPos, setDefaultPos] = useState<{ x: number; y: number } | null>(null);
+  const dragNodeRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const x = window.innerWidth - 24 - 52;   // right: 24, FAB width ~52
+    const y = window.innerHeight - 24 - 52;  // bottom: 24, FAB height ~52
+    setDefaultPos({ x, y });
+  }, []);
+
+  const handleDragStop = useCallback((_e: DraggableEvent, _data: DraggableData) => {
+    // position is managed internally by Draggable in uncontrolled mode
+  }, []);
 
   const resetForm = useCallback(() => {
     setTitle('');
@@ -223,10 +238,31 @@ export default function QuickNotesFab() {
   }, []);
 
   if (!canWrite) return null;
+  if (!defaultPos) return null; // wait for client-side position calculation
 
   return (
     <>
-      <Box sx={{ position: 'fixed', bottom: 24, right: 24, zIndex: 1200, display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+      <Draggable
+        nodeRef={dragNodeRef}
+        defaultPosition={defaultPos!}
+        onStop={handleDragStop}
+        bounds="window"
+        cancel="[data-no-drag]"
+      >
+      <Box
+        ref={dragNodeRef}
+        sx={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          zIndex: 1200,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'flex-end',
+          cursor: 'grab',
+          '&:active': { cursor: 'grabbing' },
+        }}
+      >
         <AnimatePresence>
           {panelOpen && (
             <motion.div
@@ -236,6 +272,7 @@ export default function QuickNotesFab() {
               transition={{ duration: 0.2, ease: 'easeOut' }}
             >
               <Paper
+                data-no-drag
                 elevation={12}
                 sx={{
                   width: 400,
@@ -524,17 +561,20 @@ export default function QuickNotesFab() {
         </AnimatePresence>
 
         <Fab
+          data-no-drag
           color="primary"
           onClick={() => setPanelOpen((o) => !o)}
           sx={{
             width: 52,
             height: 52,
             boxShadow: `0 4px 20px ${alpha(palette.primary.main, 0.35)}`,
+            cursor: 'inherit',
           }}
         >
           {panelOpen ? <CloseIcon /> : <EditNoteIcon />}
         </Fab>
       </Box>
+      </Draggable>
 
       <Snackbar
         open={toast}
