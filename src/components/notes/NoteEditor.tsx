@@ -42,6 +42,8 @@ export default function NoteEditor({
     extensions: [
       StarterKit.configure({
         heading: { levels: [1, 2, 3] },
+        // Disable StarterKit's built-in link so the explicit LinkExtension below doesn't duplicate
+        link: false,
       }),
       LinkExtension.configure({
         openOnClick: true,
