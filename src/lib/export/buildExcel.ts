@@ -233,7 +233,7 @@ function addIndexSheet(wb: ExcelJS.Workbook, snapshot: ExportSnapshot): void {
  * Build an ExcelJS workbook from an export snapshot.
  * Returns the workbook buffer as a Buffer.
  */
-export async function buildExcel(snapshot: ExportSnapshot): Promise<Buffer> {
+export async function buildExcel(snapshot: ExportSnapshot): Promise<ArrayBuffer> {
   const wb = new ExcelJS.Workbook();
   wb.creator = 'TestForge';
   wb.created = new Date();
@@ -250,5 +250,7 @@ export async function buildExcel(snapshot: ExportSnapshot): Promise<Buffer> {
   }
 
   const buffer = await wb.xlsx.writeBuffer();
-  return Buffer.from(buffer);
+  // writeBuffer returns ExcelJS.Buffer (Buffer | ArrayBuffer). Slice to get a clean ArrayBuffer.
+  const u8 = new Uint8Array(buffer as ArrayBuffer);
+  return u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength);
 }
