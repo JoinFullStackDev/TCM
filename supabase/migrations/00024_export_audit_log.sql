@@ -31,10 +31,3 @@ CREATE POLICY "export_audit_admin_select" ON export_audit_log
       WHERE profiles.id = auth.uid() AND profiles.role = 'admin'
     )
   );
-
--- 90-day retention cleanup (requires pg_cron extension)
-SELECT cron.schedule(
-  'cleanup-export-audit-log',
-  '0 2 * * *',
-  $$DELETE FROM export_audit_log WHERE created_at < now() - interval '90 days';$$
-);
