@@ -62,18 +62,31 @@ export default function QuickNotesFab() {
 
   const canWrite = can('write');
 
-  // Draggable position — default bottom-right (computed on mount to avoid SSR mismatch)
-  const [defaultPos, setDefaultPos] = useState<{ x: number; y: number } | null>(null);
+  // Draggable: track position in state so panel always opens above the FAB
+  const FAB_SIZE = 56;
+  const MARGIN = 24;
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
   const dragNodeRef = useRef<HTMLDivElement>(null);
+  const isDragging = useRef(false);
 
   useEffect(() => {
-    const x = window.innerWidth - 24 - 52;   // right: 24, FAB width ~52
-    const y = window.innerHeight - 24 - 52;  // bottom: 24, FAB height ~52
-    setDefaultPos({ x, y });
+    // Compute bottom-right default in fixed coords: x = distance from left, y = distance from top
+    setPos({
+      x: window.innerWidth - MARGIN - FAB_SIZE,
+      y: window.innerHeight - MARGIN - FAB_SIZE,
+    });
   }, []);
 
-  const handleDragStop = useCallback((_e: DraggableEvent, _data: DraggableData) => {
-    // position is managed internally by Draggable in uncontrolled mode
+  const handleDragStart = useCallback(() => {
+    isDragging.current = false;
+  }, []);
+
+  const handleDrag = useCallback(() => {
+    isDragging.current = true;
+  }, []);
+
+  const handleDragStop = useCallback((_e: DraggableEvent, data: DraggableData) => {
+    setPos({ x: data.x, y: data.y });
   }, []);
 
   const resetForm = useCallback(() => {
@@ -238,17 +251,19 @@ export default function QuickNotesFab() {
   }, []);
 
   if (!canWrite) return null;
-  if (!defaultPos) return null; // wait for client-side position calculation
+  if (!pos) return null; // wait for client-side position
 
   return (
     <>
       <Draggable
         nodeRef={dragNodeRef}
-        defaultPosition={defaultPos!}
+        position={pos}
+        onStart={handleDragStart}
+        onDrag={handleDrag}
         onStop={handleDragStop}
         bounds="window"
-        cancel="[data-no-drag]"
       >
+      {/* Outer wrapper: position:fixed at top:0,left:0; Draggable applies translate(x,y) */}
       <Box
         ref={dragNodeRef}
         sx={{
@@ -256,34 +271,38 @@ export default function QuickNotesFab() {
           top: 0,
           left: 0,
           zIndex: 1200,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'flex-end',
+          width: `${FAB_SIZE}px`,
+          height: `${FAB_SIZE}px`,
           cursor: 'grab',
           '&:active': { cursor: 'grabbing' },
         }}
       >
+        {/* Panel: positioned absolutely above/beside the FAB so it never goes off-screen */}
         <AnimatePresence>
           {panelOpen && (
             <motion.div
+              style={{
+                position: 'absolute',
+                bottom: `${FAB_SIZE + 12}px`,
+                right: 0,
+              }}
               initial={{ opacity: 0, y: 20, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 20, scale: 0.95 }}
               transition={{ duration: 0.2, ease: 'easeOut' }}
             >
               <Paper
-                data-no-drag
                 elevation={12}
                 sx={{
                   width: 400,
                   maxHeight: '70vh',
-                  mb: 2,
                   borderRadius: '12px',
                   border: `1px solid ${palette.divider}`,
                   bgcolor: palette.background.paper,
                   display: 'flex',
                   flexDirection: 'column',
                   overflow: 'hidden',
+                  cursor: 'default',
                 }}
               >
                 {/* Panel header */}
@@ -561,12 +580,17 @@ export default function QuickNotesFab() {
         </AnimatePresence>
 
         <Fab
-          data-no-drag
           color="primary"
-          onClick={() => setPanelOpen((o) => !o)}
+          onClick={() => {
+            // Don't toggle panel if the user was dragging
+            if (!isDragging.current) setPanelOpen((o) => !o);
+          }}
           sx={{
-            width: 52,
-            height: 52,
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: `${FAB_SIZE}px`,
+            height: `${FAB_SIZE}px`,
             boxShadow: `0 4px 20px ${alpha(palette.primary.main, 0.35)}`,
             cursor: 'inherit',
           }}
