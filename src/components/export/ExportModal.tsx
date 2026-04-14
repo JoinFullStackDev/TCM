@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
@@ -44,6 +44,17 @@ export default function ExportModal({
   const [format, setFormat] = useState<ExportFormat | null>(null);
   const [modalState, setModalState] = useState<ModalState>('idle');
   const [result, setResult] = useState<ExportResult | null>(null);
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const stopPolling = () => {
+    if (pollIntervalRef.current !== null) {
+      clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current = null;
+    }
+  };
+
+  // Clean up polling on unmount
+  useEffect(() => () => stopPolling(), []);
 
   // Restore export intent that was stored before the Google OAuth redirect
   useEffect(() => {
@@ -63,7 +74,7 @@ export default function ExportModal({
   }, [open]);
 
   const handleClose = () => {
-    // Reset state on close
+    stopPolling();
     setFormat(null);
     setModalState('idle');
     setResult(null);
@@ -108,6 +119,13 @@ export default function ExportModal({
         return;
       }
 
+      // 202 = async job queued — stay in_progress and poll for completion
+      if (res.status === 202) {
+        const data = await res.json() as { jobId: string; async: true };
+        startPolling(data.jobId, format);
+        return;
+      }
+
       if (format === 'xlsx') {
         // Trigger browser download
         const blob = await res.blob();
@@ -132,6 +150,45 @@ export default function ExportModal({
       setResult({ format, errorMessage: 'Export failed. Please try again.' });
       setModalState('error');
     }
+  };
+
+  interface JobPollResponse {
+    status: string;
+    format?: string;
+    download_url?: string;
+    sheets_url?: string;
+    error?: string;
+  }
+
+  const startPolling = (jobId: string, fmt: ExportFormat) => {
+    pollIntervalRef.current = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/export-jobs/${jobId}`);
+        if (!res.ok) return;
+        const job = await res.json() as JobPollResponse;
+
+        if (job.status === 'completed') {
+          stopPolling();
+          if (fmt === 'xlsx' && job.download_url) {
+            const a = document.createElement('a');
+            a.href = job.download_url;
+            a.download = '';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+          }
+          setResult({ format: fmt, sheetsUrl: job.sheets_url });
+          setModalState('success');
+        } else if (job.status === 'failed') {
+          stopPolling();
+          setResult({ format: fmt, errorMessage: job.error ?? 'Export failed. Please try again.' });
+          setModalState('error');
+        }
+        // 'pending' / 'processing' → keep polling
+      } catch {
+        // Ignore transient fetch errors; keep polling
+      }
+    }, 3000);
   };
 
   const handleRetry = () => {

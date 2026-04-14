@@ -14,7 +14,7 @@ export async function GET(
   const supabase = await createServiceClient();
   const { data: job } = await supabase
     .from('export_jobs')
-    .select('id, status, result_url, file_name, error_message')
+    .select('id, status, format, result_url, file_name, error_message')
     .eq('id', jobId)
     .eq('user_id', user.id)
     .single();
@@ -23,8 +23,9 @@ export async function GET(
 
   return Response.json({
     status: job.status,
-    download_url: job.result_url ?? undefined,
-    sheets_url: job.result_url ?? undefined,
+    format: job.format,
+    download_url: job.format === 'xlsx' ? (job.result_url ?? undefined) : undefined,
+    sheets_url: job.format === 'google_sheets' ? (job.result_url ?? undefined) : undefined,
     error: job.error_message ?? undefined,
   });
 }
