@@ -338,7 +338,13 @@ export default function IntegrationsPage() {
                 <Tooltip title={copied === 'key' ? 'Copied!' : 'Copy key'}>
                   <IconButton
                     size="small"
-                    onClick={() => handleCopy('tcm-webhook-dev-key-change-in-production', 'key')}
+                    onClick={async () => {
+                      const res = await fetch('/api/webhooks/key');
+                      if (res.ok) {
+                        const { key } = await res.json();
+                        handleCopy(key, 'key');
+                      }
+                    }}
                   >
                     <ContentCopyIcon sx={{ fontSize: 16 }} />
                   </IconButton>

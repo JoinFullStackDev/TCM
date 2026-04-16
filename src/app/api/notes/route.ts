@@ -29,7 +29,8 @@ export async function GET(request: Request) {
   }
 
   if (search) {
-    query = query.or(`title.ilike.%${search}%,content_plain.ilike.%${search}%`);
+    const safeSearch = search.replace(/[\\%_]/g, (c) => `\\${c}`);
+    query = query.or(`title.ilike.%${safeSearch}%,content_plain.ilike.%${safeSearch}%`);
   }
 
   const { data, error } = await query;
