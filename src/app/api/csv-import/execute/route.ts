@@ -53,8 +53,9 @@ export async function POST(request: Request) {
     .download(storagePath);
 
   if (downloadErr || !fileData) {
+    console.error('CSV download error:', downloadErr?.message ?? 'File not found');
     await supabase.from('csv_imports').update({ status: 'failed' }).eq('id', import_id);
-    return serverError(`Failed to download CSV: ${downloadErr?.message ?? 'File not found'}`);
+    return serverError('An error occurred during file processing. Please try again.');
   }
 
   const csvText = await fileData.text();
