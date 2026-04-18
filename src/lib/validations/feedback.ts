@@ -22,10 +22,5 @@ export const updateFeedbackSchema = z.object({
   project_id: z.string().uuid('Must be a valid project ID').optional().nullable(),
 });
 
-export const exportFeedbackSchema = z.object({
-  provider: z.enum(['gitlab_issues', 'ado']),
-});
-
 export type CreateFeedbackInput = z.infer<typeof createFeedbackSchema>;
 export type UpdateFeedbackInput = z.infer<typeof updateFeedbackSchema>;
-export type ExportFeedbackInput = z.infer<typeof exportFeedbackSchema>;

@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Box from '@mui/material/Box';
-import Button from '@mui/material/Button';
 import CircularProgress from '@mui/material/CircularProgress';
 import Divider from '@mui/material/Divider';
 import Drawer from '@mui/material/Drawer';
@@ -19,10 +18,8 @@ import IconButton from '@mui/material/IconButton';
 import CloseIcon from '@mui/icons-material/Close';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import AttachFileIcon from '@mui/icons-material/AttachFile';
-import IosShareIcon from '@mui/icons-material/IosShare';
 import type { FeedbackSubmission, FeedbackAttachment, FeedbackStatus, FeedbackExport } from '@/types/database';
 import FeedbackStatusBadge from './FeedbackStatusBadge';
-import FeedbackExportDialog from './FeedbackExportDialog';
 
 interface AttachmentWithUrl extends FeedbackAttachment {
   signed_url: string | null;
@@ -52,7 +49,6 @@ export default function FeedbackDetailDrawer({ feedbackId, open, onClose, onUpda
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [internalNotes, setInternalNotes] = useState('');
-  const [exportDialogOpen, setExportDialogOpen] = useState(false);
 
   const loadSubmission = useCallback(async () => {
     if (!feedbackId) return;
@@ -117,18 +113,6 @@ export default function FeedbackDetailDrawer({ feedbackId, open, onClose, onUpda
     } finally {
       setIsSaving(false);
     }
-  }
-
-  function handleExported(exportRecord: FeedbackExport) {
-    setSubmission((prev) => {
-      if (!prev) return prev;
-      return {
-        ...prev,
-        exports: [...(prev.exports ?? []), exportRecord],
-        status: 'exported',
-      };
-    });
-    onUpdated?.({ id: feedbackId ?? undefined, status: 'exported' });
   }
 
   return (
@@ -356,31 +340,8 @@ export default function FeedbackDetailDrawer({ feedbackId, open, onClose, onUpda
             )}
           </Box>
 
-          {/* Footer */}
-          {submission && (
-            <Box sx={{ p: 2, borderTop: '1px solid', borderColor: 'divider' }}>
-              <Button
-                fullWidth
-                variant="outlined"
-                startIcon={<IosShareIcon />}
-                onClick={() => setExportDialogOpen(true)}
-              >
-                Export to Tracker
-              </Button>
-            </Box>
-          )}
         </Box>
       </Drawer>
-
-      {submission && (
-        <FeedbackExportDialog
-          feedbackId={submission.id}
-          existingExports={submission.exports}
-          open={exportDialogOpen}
-          onClose={() => setExportDialogOpen(false)}
-          onExported={handleExported}
-        />
-      )}
     </>
   );
 }

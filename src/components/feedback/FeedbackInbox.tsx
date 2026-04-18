@@ -20,10 +20,12 @@ import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
 import Typography from '@mui/material/Typography';
 import Alert from '@mui/material/Alert';
+import DownloadIcon from '@mui/icons-material/Download';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import Link from 'next/link';
 import FeedbackStatusBadge from './FeedbackStatusBadge';
 import FeedbackDetailDrawer from './FeedbackDetailDrawer';
+import FeedbackExportDialog from './FeedbackExportDialog';
 import type { FeedbackStatus } from '@/types/database';
 
 interface FeedbackRow {
@@ -66,6 +68,9 @@ export default function FeedbackInbox() {
   // Detail drawer
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+
+  // Export dialog
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
 
   const load = useCallback(async () => {
     setIsLoading(true);
@@ -126,16 +131,26 @@ export default function FeedbackInbox() {
             {total} submission{total !== 1 ? 's' : ''}
           </Typography>
         </Box>
-        <Button
-          variant="outlined"
-          size="small"
-          endIcon={<OpenInNewIcon fontSize="small" />}
-          component={Link}
-          href="/feedback"
-          target="_blank"
-        >
-          Public Form
-        </Button>
+        <Stack direction="row" spacing={1}>
+          <Button
+            variant="outlined"
+            size="small"
+            startIcon={<DownloadIcon fontSize="small" />}
+            onClick={() => setExportDialogOpen(true)}
+          >
+            Export CSV
+          </Button>
+          <Button
+            variant="outlined"
+            size="small"
+            endIcon={<OpenInNewIcon fontSize="small" />}
+            component={Link}
+            href="/feedback"
+            target="_blank"
+          >
+            Public Form
+          </Button>
+        </Stack>
       </Box>
 
       {/* Filters */}
@@ -286,6 +301,11 @@ export default function FeedbackInbox() {
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         onUpdated={handleUpdated}
+      />
+
+      <FeedbackExportDialog
+        open={exportDialogOpen}
+        onClose={() => setExportDialogOpen(false)}
       />
     </Box>
   );
