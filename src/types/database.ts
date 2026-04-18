@@ -254,7 +254,7 @@ export interface GridColumnPreferences {
   updated_at: string;
 }
 
-export type IntegrationType = 'slack' | 'gitlab';
+export type IntegrationType = 'slack' | 'gitlab' | 'gitlab_issues' | 'ado';
 
 export interface SlackConfig {
   webhook_url: string;
@@ -269,16 +269,79 @@ export interface GitLabCIConfig {
   trigger_url: string;
 }
 
+export interface GitLabIssuesConfig {
+  gitlab_url: string;
+  private_token: string;
+  project_id: string;
+}
+
+export interface ADOConfig {
+  organization_url: string;
+  project_name: string;
+  /** PAT stored as Vault secret ID — raw token never returned in API responses */
+  pat_secret_id?: string;
+  /** Fallback: pgcrypto-encrypted PAT — only used if Vault unavailable */
+  pat_encrypted?: string;
+}
+
 export interface Integration {
   id: string;
   project_id: string;
   suite_id: string | null;
   type: IntegrationType;
-  config: SlackConfig | GitLabCIConfig | Record<string, unknown>;
+  config: SlackConfig | GitLabCIConfig | GitLabIssuesConfig | ADOConfig | Record<string, unknown>;
   is_active: boolean;
   created_by: string;
   created_at: string;
   updated_at: string;
+}
+
+// ============================================================
+// Feedback Portal types
+// ============================================================
+
+export type FeedbackSubmissionType = 'bug' | 'feature_request';
+export type FeedbackSeverity = 'critical' | 'high' | 'medium' | 'low';
+export type FeedbackEnvironment = 'production' | 'staging' | 'development';
+export type FeedbackStatus = 'new' | 'under_review' | 'accepted' | 'rejected' | 'exported';
+
+export interface FeedbackExport {
+  provider: 'gitlab_issues' | 'ado';
+  external_id: string;
+  external_url: string;
+  exported_at: string;
+}
+
+export interface FeedbackSubmission {
+  id: string;
+  project_id: string | null;
+  submission_type: FeedbackSubmissionType;
+  title: string;
+  severity: FeedbackSeverity | null;
+  description: string;
+  steps_to_reproduce: string | null;
+  expected_behavior: string | null;
+  actual_behavior: string | null;
+  loom_url: string | null;
+  submitter_name: string | null;
+  submitter_email: string | null;
+  environment: FeedbackEnvironment | null;
+  status: FeedbackStatus;
+  internal_notes: string | null;
+  exports: FeedbackExport[];
+  _hp_field?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface FeedbackAttachment {
+  id: string;
+  feedback_id: string;
+  storage_path: string;
+  file_name: string;
+  file_size: number | null;
+  mime_type: string | null;
+  created_at: string;
 }
 
 export interface DashboardPreferences {
