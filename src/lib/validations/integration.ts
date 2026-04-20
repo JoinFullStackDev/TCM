@@ -16,6 +16,18 @@ const slackConfigSchema = z.object({
   notify_on: z.enum(['all', 'failures_only']).optional().default('all'),
 });
 
+export const gitLabIssuesConfigSchema = z.object({
+  gitlab_url: z.string().url('Must be a valid URL'),
+  private_token: z.string().min(1, 'Private token is required'),
+  project_id: z.string().min(1, 'GitLab project ID is required'),
+});
+
+export const adoConfigSchema = z.object({
+  organization_url: z.string().url('Must be a valid URL'),
+  project_name: z.string().min(1, 'Project name is required'),
+  pat_token: z.string().min(1, 'PAT token is required'),
+});
+
 export const createIntegrationSchema = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('slack'),
@@ -31,12 +43,28 @@ export const createIntegrationSchema = z.discriminatedUnion('type', [
     config: gitLabCIConfigSchema,
     is_active: z.boolean().optional().default(true),
   }),
+  z.object({
+    type: z.literal('gitlab_issues'),
+    project_id: z.string().uuid(),
+    suite_id: z.string().uuid().nullable().optional(),
+    config: gitLabIssuesConfigSchema,
+    is_active: z.boolean().optional().default(true),
+  }),
+  z.object({
+    type: z.literal('ado'),
+    project_id: z.string().uuid(),
+    suite_id: z.string().uuid().nullable().optional(),
+    config: adoConfigSchema,
+    is_active: z.boolean().optional().default(true),
+  }),
 ]);
 
 export const updateIntegrationSchema = z.object({
   config: z.union([
     slackConfigSchema.partial(),
     gitLabCIConfigSchema.partial(),
+    gitLabIssuesConfigSchema.partial(),
+    adoConfigSchema.partial(),
   ]).optional(),
   is_active: z.boolean().optional(),
   suite_id: z.string().uuid().nullable().optional(),
@@ -53,3 +81,5 @@ export type CreateIntegrationInput = z.infer<typeof createIntegrationSchema>;
 export type UpdateIntegrationInput = z.infer<typeof updateIntegrationSchema>;
 export type SlackConfigInput = z.infer<typeof slackConfigSchema>;
 export type GitLabCIConfigInput = z.infer<typeof gitLabCIConfigSchema>;
+export type GitLabIssuesConfigInput = z.infer<typeof gitLabIssuesConfigSchema>;
+export type ADOConfigInput = z.infer<typeof adoConfigSchema>;

@@ -17,7 +17,9 @@ export type Permission =
   | 'view_webhooks'
   | 'manage_webhooks'
   | 'delete_project'
-  | 'export';
+  | 'export'
+  | 'view_feedback'
+  | 'manage_feedback';
 
 const PERMISSION_MAP: Record<Permission, UserRole[]> = {
   read: ['viewer', 'qa_engineer', 'sdet', 'admin'],
@@ -32,6 +34,10 @@ const PERMISSION_MAP: Record<Permission, UserRole[]> = {
   delete_project: ['admin'],
   /** export — viewers excluded; qa_engineer, sdet, admin can export */
   export: ['qa_engineer', 'sdet', 'admin'],
+  /** view_feedback — access the feedback inbox; viewers excluded */
+  view_feedback: ['qa_engineer', 'sdet', 'admin'],
+  /** manage_feedback — triage (status/notes/export); viewers excluded */
+  manage_feedback: ['qa_engineer', 'sdet', 'admin'],
 };
 
 export function hasPermission(role: UserRole, permission: Permission): boolean {

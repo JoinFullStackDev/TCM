@@ -25,6 +25,7 @@ import WebhookOutlinedIcon from '@mui/icons-material/WebhookOutlined';
 import MenuBookOutlinedIcon from '@mui/icons-material/MenuBookOutlined';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import AccountCircleOutlinedIcon from '@mui/icons-material/AccountCircleOutlined';
+import InboxOutlinedIcon from '@mui/icons-material/InboxOutlined';
 import FiberManualRecordIcon from '@mui/icons-material/FiberManualRecord';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
@@ -44,7 +45,7 @@ interface NavItem {
   icon: React.ReactNode;
   disabled?: boolean;
   adminOnly?: boolean;
-  permission?: 'view_webhooks' | 'soft_delete';
+  permission?: 'view_webhooks' | 'soft_delete' | 'view_feedback';
 }
 
 const NAV_ITEMS: NavItem[] = [
@@ -52,6 +53,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Projects', href: '/projects', icon: <FolderOutlinedIcon /> },
   { label: 'Test Runs', href: '/runs', icon: <PlaylistPlayIcon /> },
   { label: 'Reports', href: '/reports', icon: <AssessmentOutlinedIcon /> },
+  { label: 'Feedback', href: '/feedback-inbox', icon: <InboxOutlinedIcon />, permission: 'view_feedback' as const },
   { label: 'Integrations', href: '/integrations', icon: <WebhookOutlinedIcon />, permission: 'view_webhooks' },
   { label: 'Users', href: '/users', icon: <PeopleOutlineIcon />, adminOnly: true },
   /** Trash — soft-deleted test cases. Editor+ only; the API enforces 403 for Viewers. */

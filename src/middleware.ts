@@ -1,7 +1,14 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
-const PUBLIC_PATHS = ['/login', '/auth/callback', '/invite', '/api/webhooks'];
+const PUBLIC_PATHS = [
+  '/login',
+  '/auth/callback',
+  '/invite',
+  '/api/webhooks',
+  '/feedback',                 // public submission form page
+  '/api/feedback/projects',    // public project list for form dropdown
+];
 
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
@@ -36,7 +43,9 @@ export async function middleware(request: NextRequest) {
   }
 
   const { pathname } = request.nextUrl;
-  const isPublicPath = PUBLIC_PATHS.some((p) => pathname.startsWith(p));
+  const isPublicPath =
+    PUBLIC_PATHS.some((p) => pathname.startsWith(p)) ||
+    (pathname === '/api/feedback' && request.method === 'POST');
 
   if (!user && !isPublicPath) {
     const url = request.nextUrl.clone();
