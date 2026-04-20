@@ -168,8 +168,9 @@ CREATE POLICY feedback_attachments_select_auth ON feedback_attachments
 -- 4. New integration types
 -- ============================================================
 
-ALTER TYPE integration_type ADD VALUE IF NOT EXISTS 'gitlab_issues';
-ALTER TYPE integration_type ADD VALUE IF NOT EXISTS 'ado';
+-- Note: integrations.type is a plain text column (not a Postgres enum).
+-- New values 'gitlab_issues' and 'ado' are handled at the application layer only.
+-- No schema change needed here.
 
 -- ============================================================
 -- 5. Storage bucket: feedback-attachments
