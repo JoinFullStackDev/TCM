@@ -202,7 +202,7 @@ USING (
   AND EXISTS (
     SELECT 1 FROM profiles
     WHERE profiles.id = auth.uid()
-      AND profiles.role IN ('qa_engineer', 'sdet', 'admin')
+      AND profiles.role::text IN ('qa_engineer', 'sdet', 'admin')
   )
 );
 
@@ -213,6 +213,6 @@ USING (
   AND EXISTS (
     SELECT 1 FROM profiles
     WHERE profiles.id = auth.uid()
-      AND profiles.role = 'admin'
+      AND profiles.role::text = 'admin'
   )
 );
