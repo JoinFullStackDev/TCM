@@ -97,7 +97,7 @@ CREATE POLICY feedback_submissions_select_auth ON feedback_submissions
     EXISTS (
       SELECT 1 FROM profiles
       WHERE profiles.id = auth.uid()
-        AND profiles.role IN ('qa_engineer', 'sdet', 'admin')
+        AND profiles.role::text IN ('qa_engineer', 'sdet', 'admin')
     )
   );
 
@@ -108,14 +108,14 @@ CREATE POLICY feedback_submissions_update_auth ON feedback_submissions
     EXISTS (
       SELECT 1 FROM profiles
       WHERE profiles.id = auth.uid()
-        AND profiles.role IN ('qa_engineer', 'sdet', 'admin')
+        AND profiles.role::text IN ('qa_engineer', 'sdet', 'admin')
     )
   )
   WITH CHECK (
     EXISTS (
       SELECT 1 FROM profiles
       WHERE profiles.id = auth.uid()
-        AND profiles.role IN ('qa_engineer', 'sdet', 'admin')
+        AND profiles.role::text IN ('qa_engineer', 'sdet', 'admin')
     )
   );
 
@@ -126,7 +126,7 @@ CREATE POLICY feedback_submissions_delete_admin ON feedback_submissions
     EXISTS (
       SELECT 1 FROM profiles
       WHERE profiles.id = auth.uid()
-        AND profiles.role = 'admin'
+        AND profiles.role::text = 'admin'
     )
   );
 
@@ -160,7 +160,7 @@ CREATE POLICY feedback_attachments_select_auth ON feedback_attachments
     EXISTS (
       SELECT 1 FROM profiles
       WHERE profiles.id = auth.uid()
-        AND profiles.role IN ('qa_engineer', 'sdet', 'admin')
+        AND profiles.role::text IN ('qa_engineer', 'sdet', 'admin')
     )
   );
 
