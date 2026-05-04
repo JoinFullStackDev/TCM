@@ -6,16 +6,11 @@ import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
 import Button from '@mui/material/Button';
-import FormControl from '@mui/material/FormControl';
-import FormLabel from '@mui/material/FormLabel';
-import RadioGroup from '@mui/material/RadioGroup';
-import FormControlLabel from '@mui/material/FormControlLabel';
-import Radio from '@mui/material/Radio';
 import Typography from '@mui/material/Typography';
 import ExportProgress from './ExportProgress';
 import ExportResultBanner from './ExportResultBanner';
 
-type ExportFormat = 'xlsx' | 'google_sheets';
+type ExportFormat = 'xlsx';
 type ModalState = 'idle' | 'in_progress' | 'success' | 'error';
 
 interface ExportResult {
@@ -41,7 +36,7 @@ export default function ExportModal({
   suiteName,
   onClose,
 }: ExportModalProps) {
-  const [format, setFormat] = useState<ExportFormat | null>(null);
+  const format: ExportFormat = 'xlsx';
   const [modalState, setModalState] = useState<ModalState>('idle');
   const [result, setResult] = useState<ExportResult | null>(null);
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -56,48 +51,14 @@ export default function ExportModal({
   // Clean up polling on unmount
   useEffect(() => () => stopPolling(), []);
 
-  // Restore export intent that was stored before the Google OAuth redirect
-  useEffect(() => {
-    if (!open) return;
-    try {
-      const raw = sessionStorage.getItem('export_intent');
-      if (raw) {
-        sessionStorage.removeItem('export_intent');
-        const intent = JSON.parse(raw) as { format?: string };
-        if (intent.format === 'xlsx' || intent.format === 'google_sheets') {
-          setFormat(intent.format);
-        }
-      }
-    } catch {
-      // corrupt storage value — ignore
-    }
-  }, [open]);
-
   const handleClose = () => {
     stopPolling();
-    setFormat(null);
     setModalState('idle');
     setResult(null);
     onClose();
   };
 
   const handleExport = async () => {
-    if (!format) return;
-
-    // Check Google auth before starting
-    if (format === 'google_sheets') {
-      const statusRes = await fetch('/api/auth/google/status');
-      const statusData = await statusRes.json() as { connected: boolean };
-      if (!statusData.connected) {
-        // Store export intent and redirect to OAuth
-        const intent = { scope: suiteId ? 'suite' : 'project', projectId, suiteId, format };
-        sessionStorage.setItem('export_intent', JSON.stringify(intent));
-        const returnTo = encodeURIComponent(window.location.pathname);
-        window.location.href = `/api/auth/google/connect?return_to=${returnTo}`;
-        return;
-      }
-    }
-
     setModalState('in_progress');
 
     const endpoint = suiteId
@@ -126,26 +87,20 @@ export default function ExportModal({
         return;
       }
 
-      if (format === 'xlsx') {
-        // Trigger browser download
-        const blob = await res.blob();
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        const cd = res.headers.get('Content-Disposition') ?? '';
-        const match = cd.match(/filename="([^"]+)"/);
-        a.download = match?.[1] ?? 'export.xlsx';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        setResult({ format });
-        setModalState('success');
-      } else {
-        const data = await res.json() as { url: string };
-        setResult({ format, sheetsUrl: data.url });
-        setModalState('success');
-      }
+      // Trigger browser download
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const cd = res.headers.get('Content-Disposition') ?? '';
+      const match = cd.match(/filename="([^"]+)"/);
+      a.download = match?.[1] ?? 'export.xlsx';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      setResult({ format });
+      setModalState('success');
     } catch {
       setResult({ format, errorMessage: 'Export failed. Please try again.' });
       setModalState('error');
@@ -206,34 +161,13 @@ export default function ExportModal({
 
       <DialogContent>
         {modalState === 'idle' && (
-          <FormControl>
-            <FormLabel sx={{ mb: 1, fontWeight: 500, fontSize: '0.875rem' }}>
-              Export format
-            </FormLabel>
-            <RadioGroup
-              value={format ?? ''}
-              onChange={(e) => setFormat(e.target.value as ExportFormat)}
-            >
-              <FormControlLabel
-                value="xlsx"
-                control={<Radio size="small" />}
-                label={
-                  <Typography fontSize="0.875rem">Export as Excel (.xlsx)</Typography>
-                }
-              />
-              <FormControlLabel
-                value="google_sheets"
-                control={<Radio size="small" />}
-                label={
-                  <Typography fontSize="0.875rem">Export to Google Sheets</Typography>
-                }
-              />
-            </RadioGroup>
-          </FormControl>
+          <Typography fontSize="0.875rem">
+            Exports all test cases in {scopeLabel} as an Excel (.xlsx) file.
+          </Typography>
         )}
 
         {modalState === 'in_progress' && (
-          <ExportProgress format={format!} />
+          <ExportProgress format={format} />
         )}
 
         {(modalState === 'success' || modalState === 'error') && result && (
@@ -254,11 +188,10 @@ export default function ExportModal({
             </Button>
             <Button
               variant="contained"
-              disabled={!format}
               onClick={handleExport}
               sx={{ textTransform: 'none' }}
             >
-              Export
+              Export as .xlsx
             </Button>
           </>
         )}
@@ -273,14 +206,9 @@ export default function ExportModal({
 }
 
 function mapErrorToMessage(error: string | undefined, format: ExportFormat): string {
-  if (error === 'google_not_connected') {
-    return 'Your Google account is not connected. Please connect it in your profile settings.';
-  }
-  if (error === 'google_reauth_required') {
-    return 'Your Google authorization has expired. Please reconnect your Google account in profile settings.';
-  }
+  void format;
   if (error?.includes('too large')) {
     return error;
   }
-  return `Export failed. Please try again.`;
+  return 'Export failed. Please try again.';
 }
