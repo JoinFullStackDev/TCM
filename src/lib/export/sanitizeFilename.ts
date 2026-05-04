@@ -25,13 +25,23 @@ export function buildFilename(
 }
 
 /**
+ * Strip characters illegal in Excel worksheet tab names: * ? : \ / [ ]
+ * Replaces each with a space and collapses runs of spaces.
+ */
+export function sanitizeTabName(name: string): string {
+  return name.replace(/[*?:\\/[\]]/g, ' ').replace(/\s{2,}/g, ' ').trim();
+}
+
+/**
  * Truncate a suite name to fit Excel's 31-character tab name limit.
+ * Sanitizes illegal tab characters first, then truncates.
  * Returns the truncated name. If truncation produces a duplicate, the
  * caller is responsible for appending a _(N) suffix.
  */
 export function truncateTabName(name: string): string {
-  if (name.length <= 31) return name;
-  return name.slice(0, 28) + '...';
+  const sanitized = sanitizeTabName(name);
+  if (sanitized.length <= 31) return sanitized;
+  return sanitized.slice(0, 28) + '...';
 }
 
 /**
