@@ -11,7 +11,7 @@ import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 
 interface ExportResultBannerProps {
-  format: 'xlsx' | 'google_sheets';
+  format: 'xlsx' | 'google_sheets' | 'csv';
   sheetsUrl?: string;
   errorMessage?: string;
   onRetry?: () => void;
@@ -56,9 +56,9 @@ export default function ExportResultBanner({
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
         <CheckCircleOutlineIcon color="success" fontSize="small" />
         <Typography fontSize="0.875rem" fontWeight={500} color="success.main">
-          {format === 'xlsx'
-            ? 'Export ready — your download has started.'
-            : 'Export complete.'}
+          {format === 'google_sheets'
+            ? 'Export complete.'
+            : 'Export ready — your download has started.'}
         </Typography>
       </Box>
 

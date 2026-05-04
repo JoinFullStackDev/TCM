@@ -1,17 +1,17 @@
 import { NextResponse } from 'next/server';
 import { withAuth, notFound, serverError } from '@/lib/api/helpers';
 import { createServiceClient } from '@/lib/supabase/server';
-import { fetchSuiteSnapshot, countSuiteTestCases, fetchAnnotationMap } from '@/lib/export/fetchExportSnapshot';
-import { buildExcel } from '@/lib/export/buildExcel';
-import { buildGoogleSheets } from '@/lib/export/buildGoogleSheets';
-import { buildFilename } from '@/lib/export/sanitizeFilename';
-import { getValidAccessToken } from '@/lib/google/tokenStore';
-import { runAsyncExport } from '@/lib/export/runAsyncExport';
 
-// Sync path for ≤500 test cases. For >500, dispatch an async job (HIGH-05/GAP-08/09).
-const SYNC_THRESHOLD = 500;
+function escapeCsv(value: string | null | undefined): string {
+  if (value === null || value === undefined) return '';
+  const str = String(value);
+  if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+    return `"${str.replace(/"/g, '""')}"`;
+  }
+  return str;
+}
 
-export async function POST(
+export async function GET(
   request: Request,
   context: { params: Promise<{ projectId: string; suiteId: string }> },
 ) {
@@ -23,7 +23,6 @@ export async function POST(
 
   const supabase = await createServiceClient();
 
-  // Per-project permission check
   const { data: project } = await supabase
     .from('projects')
     .select('id, name, export_allowed_roles')
@@ -37,7 +36,6 @@ export async function POST(
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  // Suite scope verification (TF-EXP-17)
   const { data: suite } = await supabase
     .from('suites')
     .select('id, name, project_id')
@@ -48,138 +46,102 @@ export async function POST(
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  const body = await request.json().catch(() => ({}));
-  const format: string = body.format ?? 'xlsx';
-
-  if (format !== 'xlsx' && format !== 'google_sheets') {
-    return NextResponse.json({ error: 'Invalid format. Must be xlsx or google_sheets.' }, { status: 400 });
-  }
-
   let testCaseCount = 0;
   let exportSucceeded = false;
   let errorMsg: string | undefined;
-  let xlsxFilename: string | undefined;
-  let sheetsUrl: string | undefined;
 
   try {
-    testCaseCount = await countSuiteTestCases(suiteId);
+    const { data: testCases } = await supabase
+      .from('test_cases')
+      .select('id, title, description, precondition, automation_status')
+      .eq('suite_id', suiteId)
+      .is('deleted_at', null);
 
-    if (testCaseCount > SYNC_THRESHOLD) {
-      // For Google Sheets, verify auth before queuing so we fail fast
-      if (format === 'google_sheets') {
-        try {
-          await getValidAccessToken(user.id);
-        } catch (err: unknown) {
-          const errMsg = (err as Error).message;
-          if (errMsg === 'NOT_CONNECTED') {
-            return NextResponse.json({ error: 'google_not_connected' }, { status: 401 });
-          }
-          if (errMsg === 'TOKEN_REVOKED') {
-            return NextResponse.json({ error: 'google_reauth_required' }, { status: 401 });
-          }
-          throw err;
+    const headers = [
+      'Suite', 'Test Case ID', 'Title', 'Description', 'Precondition',
+      'Step #', 'Step Description', 'Test Data', 'Expected Result',
+      'Automation Status', 'Bug Links',
+    ];
+    const rows: string[] = [headers.map(escapeCsv).join(',')];
+
+    for (const tc of testCases ?? []) {
+      testCaseCount++;
+
+      const { data: steps } = await supabase
+        .from('test_steps')
+        .select('step_number, description, test_data, expected_result')
+        .eq('test_case_id', tc.id)
+        .order('step_number');
+
+      const { data: bugLinks } = await supabase
+        .from('bug_links')
+        .select('url')
+        .eq('test_case_id', tc.id);
+
+      const bugLinkStr = (bugLinks ?? []).map((b: { url: string }) => b.url).join(', ');
+      const stepList = steps ?? [];
+
+      if (stepList.length === 0) {
+        rows.push([
+          escapeCsv(suite.name),
+          escapeCsv(tc.id),
+          escapeCsv(tc.title),
+          escapeCsv(tc.description),
+          escapeCsv(tc.precondition),
+          '',
+          '',
+          '',
+          '',
+          escapeCsv(tc.automation_status),
+          escapeCsv(bugLinkStr),
+        ].join(','));
+      } else {
+        for (const step of stepList) {
+          rows.push([
+            escapeCsv(suite.name),
+            escapeCsv(tc.id),
+            escapeCsv(tc.title),
+            escapeCsv(tc.description),
+            escapeCsv(tc.precondition),
+            escapeCsv(String(step.step_number)),
+            escapeCsv(step.description),
+            escapeCsv(step.test_data),
+            escapeCsv(step.expected_result),
+            escapeCsv(tc.automation_status),
+            escapeCsv(bugLinkStr),
+          ].join(','));
         }
       }
-
-      // Create async export job (HIGH-05)
-      const { data: job, error: jobError } = await supabase
-        .from('export_jobs')
-        .insert({
-          user_id: user.id,
-          project_id: projectId,
-          suite_id: suiteId,
-          format,
-          scope: 'suite',
-          status: 'pending',
-          test_case_count: testCaseCount,
-        })
-        .select('id')
-        .single();
-
-      if (jobError || !job) {
-        return serverError('Failed to create export job.');
-      }
-
-      // Fire-and-forget — response is already sent (202 below)
-      runAsyncExport({
-        jobId: job.id,
-        userId: user.id,
-        projectId,
-        suiteId,
-        projectName: project.name as string,
-        suiteName: suite.name as string,
-        format: format as 'xlsx' | 'google_sheets',
-        scope: 'suite',
-        testCaseCount,
-        ipAddress: request.headers.get('x-forwarded-for'),
-        userAgent: request.headers.get('user-agent'),
-      }).catch((err) => console.error('[export/suite async] unhandled:', err));
-
-      return NextResponse.json({ jobId: job.id, async: true }, { status: 202 });
     }
 
-    const snapshot = await fetchSuiteSnapshot(suiteId);
-    snapshot.annotationMap = await fetchAnnotationMap(projectId);
+    const csv = rows.join('\n');
+    const date = new Date().toISOString().split('T')[0];
+    const safeProject = (project.name as string).toLowerCase().replace(/\s+/g, '-');
+    const safeSuite = (suite.name as string).toLowerCase().replace(/\s+/g, '-');
+    const filename = `${safeProject}-${safeSuite}-export-${date}.csv`;
 
-    if (format === 'xlsx') {
-      const buffer = await buildExcel(snapshot);
-      xlsxFilename = buildFilename(project.name as string, suite.name as string);
-      exportSucceeded = true;
+    exportSucceeded = true;
 
-      await writeAuditLog({
-        userId: user.id,
-        projectId,
-        suiteId,
-        format,
-        scope: 'suite',
-        status: 'success',
-        testCaseCount,
-        fileName: xlsxFilename,
-        request,
-      });
+    await writeAuditLog({
+      userId: user.id,
+      projectId,
+      suiteId,
+      format: 'csv',
+      scope: 'suite',
+      status: 'success',
+      testCaseCount,
+      fileName: filename,
+      request,
+    });
 
-      return new Response(buffer, {
-        status: 200,
-        headers: {
-          'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-          'Content-Disposition': `attachment; filename="${xlsxFilename}"`,
-          'Cache-Control': 'no-store',
-        },
-      });
-    } else {
-      // Google Sheets
-      let accessToken: string;
-      try {
-        accessToken = await getValidAccessToken(user.id);
-      } catch (err: unknown) {
-        const errMsg = (err as Error).message;
-        if (errMsg === 'NOT_CONNECTED') {
-          return NextResponse.json({ error: 'google_not_connected' }, { status: 401 });
-        }
-        if (errMsg === 'TOKEN_REVOKED') {
-          return NextResponse.json({ error: 'google_reauth_required' }, { status: 401 });
-        }
-        throw err;
-      }
-
-      const title = `${project.name} / ${suite.name} — TestForge Export`;
-      sheetsUrl = await buildGoogleSheets(accessToken, title as string, snapshot);
-      exportSucceeded = true;
-
-      await writeAuditLog({
-        userId: user.id,
-        projectId,
-        suiteId,
-        format,
-        scope: 'suite',
-        status: 'success',
-        testCaseCount,
-        sheetsUrl,
-        request,
-      });
-
-      return NextResponse.json({ url: sheetsUrl });
-    }
+    return new Response(csv, {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/csv',
+        'Content-Disposition': `attachment; filename="${filename}"`,
+        'Cache-Control': 'no-store',
+      },
+    });
   } catch (err: unknown) {
     errorMsg = (err as Error).message ?? 'Export failed';
     if (!exportSucceeded) {
@@ -187,7 +149,7 @@ export async function POST(
         userId: user.id,
         projectId,
         suiteId,
-        format,
+        format: 'csv',
         scope: 'suite',
         status: 'failed',
         testCaseCount,
@@ -209,7 +171,6 @@ interface AuditLogParams {
   status: 'success' | 'failed';
   testCaseCount: number;
   fileName?: string;
-  sheetsUrl?: string;
   errorMsg?: string;
   request: Request;
 }
@@ -226,7 +187,7 @@ async function writeAuditLog(params: AuditLogParams) {
       status: params.status,
       test_case_count: params.testCaseCount,
       file_name: params.fileName ?? null,
-      sheets_url: params.sheetsUrl ?? null,
+      sheets_url: null,
       error_message: params.errorMsg ?? null,
       ip_address: params.request.headers.get('x-forwarded-for') ?? null,
       user_agent: params.request.headers.get('user-agent') ?? null,
