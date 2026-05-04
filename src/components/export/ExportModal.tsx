@@ -10,12 +10,9 @@ import Typography from '@mui/material/Typography';
 import ExportProgress from './ExportProgress';
 import ExportResultBanner from './ExportResultBanner';
 
-type ExportFormat = 'xlsx';
 type ModalState = 'idle' | 'in_progress' | 'success' | 'error';
 
 interface ExportResult {
-  format: ExportFormat;
-  sheetsUrl?: string;
   errorMessage?: string;
 }
 
@@ -36,7 +33,7 @@ export default function ExportModal({
   suiteName,
   onClose,
 }: ExportModalProps) {
-  const format: ExportFormat = 'xlsx';
+  const format = 'xlsx' as const;
   const [modalState, setModalState] = useState<ModalState>('idle');
   const [result, setResult] = useState<ExportResult | null>(null);
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -74,8 +71,8 @@ export default function ExportModal({
 
       if (!res.ok) {
         const data = await res.json() as { error?: string };
-        const errorMessage = mapErrorToMessage(data.error, format);
-        setResult({ format, errorMessage });
+        const errorMessage = mapErrorToMessage(data.error);
+        setResult({ errorMessage });
         setModalState('error');
         return;
       }
@@ -83,7 +80,7 @@ export default function ExportModal({
       // 202 = async job queued — stay in_progress and poll for completion
       if (res.status === 202) {
         const data = await res.json() as { jobId: string; async: true };
-        startPolling(data.jobId, format);
+        startPolling(data.jobId);
         return;
       }
 
@@ -99,23 +96,21 @@ export default function ExportModal({
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      setResult({ format });
+      setResult({});
       setModalState('success');
     } catch {
-      setResult({ format, errorMessage: 'Export failed. Please try again.' });
+      setResult({ errorMessage: 'Export failed. Please try again.' });
       setModalState('error');
     }
   };
 
   interface JobPollResponse {
     status: string;
-    format?: string;
     download_url?: string;
-    sheets_url?: string;
     error?: string;
   }
 
-  const startPolling = (jobId: string, fmt: ExportFormat) => {
+  const startPolling = (jobId: string) => {
     pollIntervalRef.current = setInterval(async () => {
       try {
         const res = await fetch(`/api/export-jobs/${jobId}`);
@@ -124,7 +119,7 @@ export default function ExportModal({
 
         if (job.status === 'completed') {
           stopPolling();
-          if (fmt === 'xlsx' && job.download_url) {
+          if (job.download_url) {
             const a = document.createElement('a');
             a.href = job.download_url;
             a.download = '';
@@ -132,11 +127,11 @@ export default function ExportModal({
             a.click();
             document.body.removeChild(a);
           }
-          setResult({ format: fmt, sheetsUrl: job.sheets_url });
+          setResult({});
           setModalState('success');
         } else if (job.status === 'failed') {
           stopPolling();
-          setResult({ format: fmt, errorMessage: job.error ?? 'Export failed. Please try again.' });
+          setResult({ errorMessage: job.error ?? 'Export failed. Please try again.' });
           setModalState('error');
         }
         // 'pending' / 'processing' → keep polling
@@ -167,13 +162,11 @@ export default function ExportModal({
         )}
 
         {modalState === 'in_progress' && (
-          <ExportProgress format={format} />
+          <ExportProgress />
         )}
 
         {(modalState === 'success' || modalState === 'error') && result && (
           <ExportResultBanner
-            format={result.format}
-            sheetsUrl={result.sheetsUrl}
             errorMessage={result.errorMessage}
             onRetry={handleRetry}
           />
@@ -205,8 +198,7 @@ export default function ExportModal({
   );
 }
 
-function mapErrorToMessage(error: string | undefined, format: ExportFormat): string {
-  void format;
+function mapErrorToMessage(error: string | undefined): string {
   if (error?.includes('too large')) {
     return error;
   }
