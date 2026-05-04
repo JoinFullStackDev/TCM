@@ -6,7 +6,7 @@ import CircularProgress from '@mui/material/CircularProgress';
 import Typography from '@mui/material/Typography';
 
 interface ExportProgressProps {
-  format: 'xlsx' | 'google_sheets';
+  format: 'xlsx' | 'google_sheets' | 'csv';
 }
 
 export default function ExportProgress({ format }: ExportProgressProps) {
@@ -17,7 +17,7 @@ export default function ExportProgress({ format }: ExportProgressProps) {
     return () => clearTimeout(timer);
   }, []);
 
-  const label = format === 'xlsx' ? 'Excel file' : 'Google Sheet';
+  const label = format === 'xlsx' ? 'Excel file' : format === 'google_sheets' ? 'Google Sheet' : 'CSV file';
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, py: 2 }}>
