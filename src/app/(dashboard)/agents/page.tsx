@@ -108,7 +108,8 @@ function AgentsPageInner() {
 
   return (
     <PageTransition>
-      <Box sx={{ p: 3, maxWidth: viewMode === 'board' ? 'none' : 1200, mx: 'auto', overflow: 'hidden' }}>
+      <Box sx={{ overflow: 'hidden' }}>
+        <Box sx={{ px: 3, pt: 3, maxWidth: 1200, mx: 'auto' }}>
         {/* Header */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
           <SmartToyOutlinedIcon sx={{ fontSize: 32, color: 'primary.main' }} />
@@ -197,9 +198,11 @@ function AgentsPageInner() {
           </Box>
         )}
 
-        {/* ── Board view ─────────────────────────────────────────── */}
+        </Box>{/* end constrained header region */}
+
+        {/* ── Board view — full width, own horizontal scroll ─── */}
         {!loading && runs.length > 0 && viewMode === 'board' && (
-          <>
+          <Box sx={{ px: 3, pb: 3 }}>
             <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
               {total} run{total !== 1 ? 's' : ''} total
               {activeCount > 0 ? ` · polling every 5s` : ` · polling every 30s`}
@@ -211,11 +214,12 @@ function AgentsPageInner() {
               onGroupingChange={handleBoardGroupingChange}
               onAction={refresh}
             />
-          </>
+          </Box>
         )}
 
-        {/* ── List view (unchanged) ───────────────────────────────── */}
+        {/* ── List view — back inside constrained box ─────────── */}
         {!loading && runs.length > 0 && viewMode === 'list' && (
+          <Box sx={{ px: 3, pb: 3, maxWidth: 1200, mx: 'auto' }}>
           <>
             <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
               {total} run{total !== 1 ? 's' : ''} total
@@ -250,6 +254,7 @@ function AgentsPageInner() {
               )}
             </Box>
           </>
+          </Box>
         )}
       </Box>
     </PageTransition>
