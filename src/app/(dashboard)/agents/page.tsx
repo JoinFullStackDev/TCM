@@ -108,7 +108,7 @@ function AgentsPageInner() {
 
   return (
     <PageTransition>
-      <Box sx={{ p: 3, maxWidth: viewMode === 'board' ? 'none' : 1200, mx: 'auto' }}>
+      <Box sx={{ p: 3, maxWidth: viewMode === 'board' ? 'none' : 1200, mx: 'auto', overflow: 'hidden' }}>
         {/* Header */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
           <SmartToyOutlinedIcon sx={{ fontSize: 32, color: 'primary.main' }} />
