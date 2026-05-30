@@ -142,7 +142,7 @@ export default function DocEditor({ doc, saveStatus, onContentChange, onTitleCha
         <NoteEditor
           key={doc.id}
           content={doc.content ?? ''}
-          onChange={(content) => onContentChange(content)}
+          onChange={(html) => onContentChange(html)}
           readOnly={!canWrite}
           placeholder="Start writing your document…"
           minHeight={400}
