@@ -26,6 +26,8 @@ import MenuBookOutlinedIcon from '@mui/icons-material/MenuBookOutlined';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import AccountCircleOutlinedIcon from '@mui/icons-material/AccountCircleOutlined';
 import InboxOutlinedIcon from '@mui/icons-material/InboxOutlined';
+import SmartToyOutlinedIcon from '@mui/icons-material/SmartToyOutlined';
+import GridViewOutlinedIcon from '@mui/icons-material/GridViewOutlined';
 import FiberManualRecordIcon from '@mui/icons-material/FiberManualRecord';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
@@ -62,6 +64,8 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Trash', href: '/trash', icon: <DeleteOutlineIcon />, permission: 'soft_delete' as const },
   /** Agent Runs — FullThrottle agent session visibility */
   { label: 'Agents', href: '/agents', icon: <SmartToyOutlinedIcon /> },
+  /** Agent Registry — registered FullThrottle agent profiles */
+  { label: 'Registry', href: '/registry', icon: <GridViewOutlinedIcon /> },
 ];
 
 function extractProjectId(pathname: string): string | null {
