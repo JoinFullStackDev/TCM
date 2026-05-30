@@ -6,6 +6,7 @@ const PUBLIC_PATHS = [
   '/auth/callback',
   '/invite',
   '/api/webhooks',
+  '/api/agent-runs',       // auth handled in route handler (X-Clutch-Key or Supabase JWT)
   '/feedback',                 // public submission form page
   '/api/feedback/projects',    // public project list for form dropdown
 ];
