@@ -26,10 +26,11 @@ import MenuBookOutlinedIcon from '@mui/icons-material/MenuBookOutlined';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import AccountCircleOutlinedIcon from '@mui/icons-material/AccountCircleOutlined';
 import InboxOutlinedIcon from '@mui/icons-material/InboxOutlined';
+import SmartToyOutlinedIcon from '@mui/icons-material/SmartToyOutlined';
+import GridViewOutlinedIcon from '@mui/icons-material/GridViewOutlined';
 import FiberManualRecordIcon from '@mui/icons-material/FiberManualRecord';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
-import SmartToyOutlinedIcon from '@mui/icons-material/SmartToyOutlined';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { ROLE_LABELS } from '@/lib/auth/rbac';
@@ -56,6 +57,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Test Runs', href: '/runs',     icon: <PlaylistPlayIcon />,       group: 'Testing' },
   { label: 'Reports',   href: '/reports',  icon: <AssessmentOutlinedIcon />, group: 'Testing' },
   { label: 'Agents',    href: '/agents',   icon: <SmartToyOutlinedIcon />,   group: 'Intelligence' },
+  { label: 'Registry',  href: '/registry', icon: <GridViewOutlinedIcon />,   group: 'Intelligence' },
   { label: 'Docs',      href: '/docs',     icon: <MenuBookOutlinedIcon />,   group: 'Intelligence' },
   { label: 'Feedback',     href: '/feedback-inbox', icon: <InboxOutlinedIcon />,  permission: 'view_feedback' as const, group: 'Admin' },
   { label: 'Integrations', href: '/integrations',   icon: <WebhookOutlinedIcon />, permission: 'view_webhooks',          group: 'Admin' },

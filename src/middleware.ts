@@ -9,6 +9,8 @@ const PUBLIC_PATHS = [
   '/api/agent-runs',       // auth handled in route handler (X-Clutch-Key or Supabase JWT)
   '/feedback',                 // public submission form page
   '/api/feedback/projects',    // public project list for form dropdown
+  '/api/agent-runs',           // dual-auth: Bearer token (Clutch) or session cookie
+  '/api/cron/',                // internal cron endpoints
 ];
 
 export async function middleware(request: NextRequest) {
