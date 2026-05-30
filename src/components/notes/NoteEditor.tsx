@@ -3,6 +3,7 @@
 import { useCallback } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
+import { Markdown } from '@tiptap/markdown';
 import LinkExtension from '@tiptap/extension-link';
 import Placeholder from '@tiptap/extension-placeholder';
 import ImageExtension from '@tiptap/extension-image';
@@ -23,7 +24,7 @@ import { palette } from '@/theme/palette';
 
 interface NoteEditorProps {
   content: string;
-  onChange: (html: string, plainText: string) => void;
+  onChange: (content: string, plainText: string) => void;
   readOnly?: boolean;
   placeholder?: string;
   minHeight?: number;
@@ -52,13 +53,14 @@ export default function NoteEditor({
       }),
       Placeholder.configure({ placeholder }),
       ImageExtension.configure({ inline: true }),
+      Markdown,
     ],
     content,
     editable: !readOnly,
     onUpdate: ({ editor: e }) => {
-      const html = e.getHTML();
+      const markdown = e.getMarkdown();
       const text = e.getText();
-      onChange(html, text);
+      onChange(markdown, text);
     },
     editorProps: {
       attributes: {
