@@ -19,7 +19,9 @@ export type Permission =
   | 'delete_project'
   | 'export'
   | 'view_feedback'
-  | 'manage_feedback';
+  | 'manage_feedback'
+  | 'docs:read'
+  | 'docs:write';
 
 const PERMISSION_MAP: Record<Permission, UserRole[]> = {
   read: ['viewer', 'qa_engineer', 'sdet', 'admin'],
@@ -38,6 +40,10 @@ const PERMISSION_MAP: Record<Permission, UserRole[]> = {
   view_feedback: ['qa_engineer', 'sdet', 'admin'],
   /** manage_feedback — triage (status/notes/export); viewers excluded */
   manage_feedback: ['qa_engineer', 'sdet', 'admin'],
+  /** docs:read — view docs; all authenticated roles */
+  'docs:read': ['viewer', 'qa_engineer', 'sdet', 'admin'],
+  /** docs:write — create/edit/delete docs and folders; editor+ roles */
+  'docs:write': ['qa_engineer', 'sdet', 'admin'],
 };
 
 export function hasPermission(role: UserRole, permission: Permission): boolean {

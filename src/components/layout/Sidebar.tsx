@@ -45,7 +45,7 @@ interface NavItem {
   icon: React.ReactNode;
   disabled?: boolean;
   adminOnly?: boolean;
-  permission?: 'view_webhooks' | 'soft_delete' | 'view_feedback';
+  permission?: 'view_webhooks' | 'soft_delete' | 'view_feedback' | 'docs:read';
 }
 
 const NAV_ITEMS: NavItem[] = [
@@ -53,6 +53,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Projects', href: '/projects', icon: <FolderOutlinedIcon /> },
   { label: 'Test Runs', href: '/runs', icon: <PlaylistPlayIcon /> },
   { label: 'Reports', href: '/reports', icon: <AssessmentOutlinedIcon /> },
+  { label: 'Docs', href: '/docs', icon: <MenuBookOutlinedIcon /> },
   { label: 'Feedback', href: '/feedback-inbox', icon: <InboxOutlinedIcon />, permission: 'view_feedback' as const },
   { label: 'Integrations', href: '/integrations', icon: <WebhookOutlinedIcon />, permission: 'view_webhooks' },
   { label: 'Users', href: '/users', icon: <PeopleOutlineIcon />, adminOnly: true },

@@ -58,9 +58,9 @@ BEGIN
   LOOP
     v_did := v_prefix || '-' || v_seq;
     EXIT WHEN NOT EXISTS (
-      SELECT 1 FROM test_cases
-       WHERE suite_id  = p_suite_id
-         AND display_id = v_did
+      SELECT 1 FROM test_cases tc
+       WHERE tc.suite_id   = p_suite_id
+         AND tc.display_id = v_did
     );
     v_seq := v_seq + 1;
   END LOOP;
