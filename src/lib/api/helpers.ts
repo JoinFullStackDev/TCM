@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { hasPermission, type Permission } from '@/lib/auth/rbac';
 import type { Profile, UserRole } from '@/types/database';
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -96,6 +96,64 @@ export function conflict(message: string) {
     { error: message },
     { status: 409 },
   );
+}
+
+// ---------------------------------------------------------------------------
+// Dual-auth: supports Supabase session cookie OR Bearer token (server-to-server)
+// ---------------------------------------------------------------------------
+export interface ServiceAuthContext {
+  supabase: SupabaseClient;
+  mode: 'bearer' | 'session';
+}
+
+type DualAuthResult =
+  | { ok: true; ctx: ServiceAuthContext }
+  | { ok: false; response: NextResponse };
+
+/**
+ * withDualAuth — accepts either:
+ *   1. A valid Supabase session cookie (browser users)
+ *   2. Authorization: Bearer <CLUTCH_API_KEY> (server-to-server from Clutch)
+ *
+ * On success returns a service-role supabase client (bypasses RLS for writes).
+ */
+export async function withDualAuth(request: Request): Promise<DualAuthResult> {
+  const authHeader = request.headers.get('authorization') ?? '';
+  const expectedKey = process.env.CLUTCH_API_KEY;
+
+  // Bearer token path — Clutch server-to-server
+  if (authHeader.startsWith('Bearer ') && expectedKey) {
+    const token = authHeader.slice(7);
+    if (token === expectedKey) {
+      const supabase = await createServiceClient();
+      return { ok: true, ctx: { supabase, mode: 'bearer' } };
+    }
+    return {
+      ok: false,
+      response: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }),
+    };
+  }
+
+  // Cookie/session path — browser users
+  const supabaseUser = await createClient();
+  let user = null;
+  try {
+    const result = await supabaseUser.auth.getUser();
+    user = result.data.user;
+  } catch {
+    user = null;
+  }
+
+  if (!user) {
+    return {
+      ok: false,
+      response: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }),
+    };
+  }
+
+  // Use service client so reads/writes bypass RLS
+  const supabase = await createServiceClient();
+  return { ok: true, ctx: { supabase, mode: 'session' } };
 }
 
 export function serverError(message = 'Internal server error') {
