@@ -31,7 +31,6 @@ import GridViewOutlinedIcon from '@mui/icons-material/GridViewOutlined';
 import FiberManualRecordIcon from '@mui/icons-material/FiberManualRecord';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
-import SmartToyOutlinedIcon from '@mui/icons-material/SmartToyOutlined';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { ROLE_LABELS } from '@/lib/auth/rbac';
