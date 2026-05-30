@@ -108,9 +108,10 @@ export function serverError(message = 'Internal server error') {
 
 /**
  * Dual-auth helper for the agent-runs API.
- * Accepts either:
- *  - Supabase session cookie (browser)
- *  - Authorization: Bearer <supabase-jwt> (Clutch server-to-server)
+ * Accepts, in priority order:
+ *  1. X-Clutch-Key: <key> header (server-to-server, validated against CLUTCH_API_KEY env var)
+ *  2. Authorization: Bearer <supabase-jwt> (Clutch legacy server-to-server)
+ *  3. Supabase session cookie (browser)
  *
  * Returns a service-role Supabase client so route handlers can bypass RLS
  * when writing on behalf of agents. Auth is still validated — only the DB
@@ -120,6 +121,17 @@ export async function withAgentAuth(): Promise<
   { ok: true; supabase: SupabaseClient } | { ok: false; response: NextResponse }
 > {
   const headerStore = await headers();
+
+  // Path 1: X-Clutch-Key header (server-to-server API key auth)
+  const clutchKey = headerStore.get('x-clutch-key');
+  if (clutchKey !== null) {
+    if (clutchKey !== process.env.CLUTCH_API_KEY || !process.env.CLUTCH_API_KEY) {
+      return { ok: false, response: NextResponse.json({ error: 'Unauthorized', code: 'UNAUTHORIZED' }, { status: 401 }) };
+    }
+    const supabase = await createServiceClient();
+    return { ok: true, supabase };
+  }
+
   const authorization = headerStore.get('authorization') ?? '';
 
   if (authorization.startsWith('Bearer ')) {
