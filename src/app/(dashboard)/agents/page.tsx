@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useMemo } from 'react';
+import { Suspense, useMemo, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
@@ -10,17 +10,62 @@ import Divider from '@mui/material/Divider';
 import Chip from '@mui/material/Chip';
 import IconButton from '@mui/material/IconButton';
 import Tooltip from '@mui/material/Tooltip';
+import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
+import ToggleButton from '@mui/material/ToggleButton';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import SmartToyOutlinedIcon from '@mui/icons-material/SmartToyOutlined';
+import ViewListIcon from '@mui/icons-material/ViewList';
+import DashboardIcon from '@mui/icons-material/Dashboard';
 import PageTransition from '@/components/animations/PageTransition';
 import AgentFilterBar from '@/components/agents/AgentFilterBar';
 import AgentRunRow from '@/components/agents/AgentRunRow';
+import AgentKanbanBoard from '@/components/agents/AgentKanbanBoard';
 import { useAgentRuns, groupRuns } from '@/hooks/useAgentRuns';
 import type { AgentRunFilters, AgentRun } from '@/types/agent-run';
+import type { BoardGrouping } from '@/components/agents/AgentKanbanBoard';
+
+type ViewMode = 'list' | 'board';
+
+const VIEW_MODE_KEY = 'agents-view-mode';
+const BOARD_GROUP_KEY = 'agents-board-group';
 
 function AgentsPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
+
+  // View mode — persisted in localStorage
+  const [viewMode, setViewMode] = useState<ViewMode>('list');
+  const [boardGrouping, setBoardGrouping] = useState<BoardGrouping>('status');
+
+  useEffect(() => {
+    try {
+      const storedView = localStorage.getItem(VIEW_MODE_KEY) as ViewMode | null;
+      if (storedView === 'list' || storedView === 'board') setViewMode(storedView);
+      const storedGroup = localStorage.getItem(BOARD_GROUP_KEY) as BoardGrouping | null;
+      if (storedGroup === 'status' || storedGroup === 'agent') setBoardGrouping(storedGroup);
+    } catch {
+      // localStorage unavailable — use defaults
+    }
+  }, []);
+
+  function handleViewModeChange(_: React.MouseEvent<HTMLElement>, value: ViewMode | null) {
+    if (!value) return;
+    setViewMode(value);
+    try {
+      localStorage.setItem(VIEW_MODE_KEY, value);
+    } catch {
+      // ignore
+    }
+  }
+
+  function handleBoardGroupingChange(next: BoardGrouping) {
+    setBoardGrouping(next);
+    try {
+      localStorage.setItem(BOARD_GROUP_KEY, next);
+    } catch {
+      // ignore
+    }
+  }
 
   const filters: AgentRunFilters = useMemo(() => ({
     agent: searchParams.get('agent') ?? undefined,
@@ -63,7 +108,7 @@ function AgentsPageInner() {
 
   return (
     <PageTransition>
-      <Box sx={{ p: 3, maxWidth: 1200, mx: 'auto' }}>
+      <Box sx={{ p: 3, maxWidth: viewMode === 'board' ? 'none' : 1200, mx: 'auto' }}>
         {/* Header */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
           <SmartToyOutlinedIcon sx={{ fontSize: 32, color: 'primary.main' }} />
@@ -85,6 +130,27 @@ function AgentsPageInner() {
                 sx={{ fontWeight: 600 }}
               />
             )}
+
+            {/* View mode toggle */}
+            <ToggleButtonGroup
+              value={viewMode}
+              exclusive
+              onChange={handleViewModeChange}
+              size="small"
+              aria-label="view mode"
+            >
+              <ToggleButton value="list" aria-label="list view">
+                <Tooltip title="List view">
+                  <ViewListIcon fontSize="small" />
+                </Tooltip>
+              </ToggleButton>
+              <ToggleButton value="board" aria-label="board view">
+                <Tooltip title="Board view">
+                  <DashboardIcon fontSize="small" />
+                </Tooltip>
+              </ToggleButton>
+            </ToggleButtonGroup>
+
             <Tooltip title="Refresh now">
               <IconButton onClick={refresh} size="small">
                 <RefreshIcon />
@@ -131,8 +197,25 @@ function AgentsPageInner() {
           </Box>
         )}
 
-        {/* Run list */}
-        {!loading && runs.length > 0 && (
+        {/* ── Board view ─────────────────────────────────────────── */}
+        {!loading && runs.length > 0 && viewMode === 'board' && (
+          <>
+            <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
+              {total} run{total !== 1 ? 's' : ''} total
+              {activeCount > 0 ? ` · polling every 5s` : ` · polling every 30s`}
+            </Typography>
+            <AgentKanbanBoard
+              runs={runs}
+              childMap={children}
+              grouping={boardGrouping}
+              onGroupingChange={handleBoardGroupingChange}
+              onAction={refresh}
+            />
+          </>
+        )}
+
+        {/* ── List view (unchanged) ───────────────────────────────── */}
+        {!loading && runs.length > 0 && viewMode === 'list' && (
           <>
             <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
               {total} run{total !== 1 ? 's' : ''} total
