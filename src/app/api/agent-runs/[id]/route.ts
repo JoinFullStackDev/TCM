@@ -1,57 +1,18 @@
 import { NextResponse } from 'next/server';
-import { withDualAuth, validationError, notFound, serverError } from '@/lib/api/helpers';
-import { updateAgentRunSchema } from '@/lib/validations/agent-run';
+import { withAgentAuth, validationError, notFound, serverError } from '@/lib/api/helpers';
+import { PatchRunSchema, TERMINAL_STATUSES, OUTPUT_TAIL_MAX_BYTES } from '@/lib/validations/agent-run';
 
-const TERMINAL_STATUSES = new Set(['done', 'failed', 'timed_out', 'killed']);
-const OUTPUT_TAIL_MAX_BYTES = 64 * 1024; // 64KB
-
-// ---------------------------------------------------------------------------
-// GET /api/agent-runs/:id — fetch full run with children and notes
-// ---------------------------------------------------------------------------
-export async function GET(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  const auth = await withDualAuth(request);
-  if (!auth.ok) return auth.response;
-  const { supabase } = auth.ctx;
-  const { id } = await params;
-
-  const { data: run, error } = await supabase
-    .from('agent_runs')
-    .select('*')
-    .eq('id', id)
-    .single();
-
-  if (error || !run) return notFound('Run');
-
-  const { data: children } = await supabase
-    .from('agent_runs')
-    .select('id, agent, brief, task_title, status, started_at')
-    .eq('parent_run_id', id)
-    .order('started_at', { ascending: true });
-
-  const { data: notes } = await supabase
-    .from('run_notes')
-    .select('*')
-    .eq('run_id', id)
-    .order('created_at', { ascending: true });
-
-  return NextResponse.json({ ...run, children: children ?? [], notes: notes ?? [] });
+interface RouteContext {
+  params: Promise<{ id: string }>;
 }
 
-// ---------------------------------------------------------------------------
-// PATCH /api/agent-runs/:id — update status, heartbeat, or output_tail
-// ---------------------------------------------------------------------------
-export async function PATCH(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  const auth = await withDualAuth(request);
+// PATCH /api/agent-runs/:id — lifecycle updates and heartbeats
+export async function PATCH(request: Request, context: RouteContext) {
+  const auth = await withAgentAuth();
   if (!auth.ok) return auth.response;
-  const { supabase } = auth.ctx;
+  const { supabase } = auth;
 
-  const { id } = await params;
+  const { id } = await context.params;
 
   let body: unknown;
   try {
@@ -60,67 +21,122 @@ export async function PATCH(
     return validationError('Invalid JSON body');
   }
 
-  const parsed = updateAgentRunSchema.safeParse(body);
+  const parsed = PatchRunSchema.safeParse(body);
   if (!parsed.success) return validationError(parsed.error.flatten());
 
-  // Guard: fetch existing row to check terminal state
-  const { data: existing, error: fetchError } = await supabase
+  const { status, lastHeartbeat, outputTail, endedAt } = parsed.data;
+
+  // Fetch existing record
+  const { data: existing, error: fetchErr } = await supabase
     .from('agent_runs')
-    .select('id, status, output_tail')
+    .select('*')
     .eq('id', id)
     .single();
 
-  if (fetchError || !existing) return notFound('Agent run');
+  if (fetchErr || !existing) return notFound('Agent run');
 
-  if (TERMINAL_STATUSES.has(existing.status)) {
+  // Guard: reject status change if run is already terminal
+  const isTerminal = TERMINAL_STATUSES.includes(existing.status as typeof TERMINAL_STATUSES[number]);
+  if (status && isTerminal) {
     return NextResponse.json(
-      { error: `Cannot update a run in terminal status: ${existing.status}` },
+      { error: 'Cannot update a terminal run', code: 'ILLEGAL_TRANSITION' },
       { status: 409 },
     );
   }
 
-  // Build update payload
-  const updates: Record<string, unknown> = {};
+  // output_tail truncation (server-side enforcement)
+  let finalOutputTail = outputTail;
+  let outputTruncated = existing.output_truncated as boolean;
 
-  if (parsed.data.status !== undefined) {
-    updates.status = parsed.data.status;
-    if (TERMINAL_STATUSES.has(parsed.data.status)) {
-      updates.ended_at = parsed.data.ended_at ?? new Date().toISOString();
+  if (finalOutputTail !== undefined) {
+    const byteLen = Buffer.byteLength(finalOutputTail, 'utf8');
+    if (byteLen > OUTPUT_TAIL_MAX_BYTES) {
+      const buf = Buffer.from(finalOutputTail, 'utf8');
+      finalOutputTail = buf.slice(buf.byteLength - OUTPUT_TAIL_MAX_BYTES).toString('utf8');
+      outputTruncated = true;
     }
   }
 
-  if (parsed.data.last_heartbeat !== undefined) {
-    updates.last_heartbeat = parsed.data.last_heartbeat;
+  // Build update payload — only include defined fields
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const updatePayload: Record<string, any> = {};
+  if (status !== undefined) updatePayload.status = status;
+  if (lastHeartbeat !== undefined) updatePayload.last_heartbeat = lastHeartbeat;
+  if (finalOutputTail !== undefined) {
+    updatePayload.output_tail = finalOutputTail;
+    updatePayload.output_truncated = outputTruncated;
   }
+  if (endedAt !== undefined) updatePayload.ended_at = endedAt;
 
-  if (parsed.data.ended_at !== undefined) {
-    updates.ended_at = parsed.data.ended_at;
-  }
-
-  // output_tail: append and cap at 64KB, truncating from the front
-  if (parsed.data.output_tail !== undefined && parsed.data.output_tail !== null) {
-    const prev = (existing.output_tail as string | null) ?? '';
-    const combined = prev + parsed.data.output_tail;
-    const encoder = new TextEncoder();
-    const bytes = encoder.encode(combined);
-
-    if (bytes.length > OUTPUT_TAIL_MAX_BYTES) {
-      const sliced = bytes.slice(bytes.length - OUTPUT_TAIL_MAX_BYTES);
-      updates.output_tail = new TextDecoder().decode(sliced);
-      updates.output_truncated = true;
-    } else {
-      updates.output_tail = combined;
-    }
-  }
-
-  const { data: updated, error } = await supabase
+  // Atomic UPDATE with stale-heartbeat guard and terminal-state guard
+  // Build WHERE conditions using supabase filters (service client, so RLS bypassed)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let query = (supabase as any)
     .from('agent_runs')
-    .update(updates)
+    .update(updatePayload)
     .eq('id', id)
+    .not('status', 'in', `(${TERMINAL_STATUSES.join(',')})`)
     .select()
     .single();
 
-  if (error) return serverError(error.message);
+  // Stale heartbeat guard: only apply when lastHeartbeat is being set and existing is non-null
+  if (lastHeartbeat && existing.last_heartbeat) {
+    query = query.lt('last_heartbeat', lastHeartbeat);
+  }
 
-  return NextResponse.json(updated);
+  const { data: updated, error: updateErr } = await query;
+
+  if (updateErr || !updated) {
+    // Re-fetch to determine cause of 0-row update
+    const { data: recheck } = await supabase
+      .from('agent_runs')
+      .select('status, last_heartbeat')
+      .eq('id', id)
+      .single();
+
+    if (!recheck) return notFound('Agent run');
+
+    // Terminal state blocked the update
+    if (TERMINAL_STATUSES.includes(recheck.status as typeof TERMINAL_STATUSES[number])) {
+      return NextResponse.json(
+        { error: 'Cannot update a terminal run', code: 'ILLEGAL_TRANSITION' },
+        { status: 409 },
+      );
+    }
+
+    // Stale heartbeat — silent dedup, not an error
+    const { data: current } = await supabase
+      .from('agent_runs')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    return NextResponse.json(toRunResponse(current));
+  }
+
+  return NextResponse.json(toRunResponse(updated));
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function toRunResponse(r: any) {
+  return {
+    id: r.id,
+    agent: r.agent,
+    brief: r.brief,
+    status: r.status,
+    sessionKey: r.session_key,
+    spawnedBy: r.spawned_by,
+    slackChannel: r.slack_channel,
+    slackThreadTs: r.slack_thread_ts,
+    projectTag: r.project_tag,
+    startedAt: r.started_at,
+    lastHeartbeat: r.last_heartbeat,
+    endedAt: r.ended_at,
+    outputTail: r.output_tail,
+    outputTruncated: r.output_truncated,
+    parentRunId: r.parent_run_id,
+    archivedAt: r.archived_at,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+  };
 }

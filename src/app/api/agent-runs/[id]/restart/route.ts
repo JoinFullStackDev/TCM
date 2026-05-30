@@ -1,77 +1,125 @@
 import { NextResponse } from 'next/server';
-import { withDualAuth, notFound, serverError } from '@/lib/api/helpers';
+import { withAgentAuth, notFound, serverError } from '@/lib/api/helpers';
 
-// ---------------------------------------------------------------------------
-// POST /api/agent-runs/:id/restart — restart via OpenClaw (feature-flagged)
-// ---------------------------------------------------------------------------
-export async function POST(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  const auth = await withDualAuth(request);
+interface RouteContext {
+  params: Promise<{ id: string }>;
+}
+
+// POST /api/agent-runs/:id/restart — operator-initiated restart
+export async function POST(_request: Request, context: RouteContext) {
+  const auth = await withAgentAuth();
   if (!auth.ok) return auth.response;
-  const { supabase } = auth.ctx;
+  const { supabase } = auth;
 
-  const { id } = await params;
+  const { id } = await context.params;
 
-  const { data: run, error: fetchError } = await supabase
+  // Fetch original record
+  const { data: original, error: fetchErr } = await supabase
     .from('agent_runs')
-    .select('id, session_key, status, agent, brief, spawned_by')
+    .select('*')
     .eq('id', id)
     .single();
 
-  if (fetchError || !run) return notFound('Agent run');
+  if (fetchErr || !original) return notFound('Agent run');
 
-  const integrationEnabled =
-    process.env.OPENCLAW_INTEGRATION_ENABLED === 'true';
-
+  let newSessionKey: string | null = null;
   let openClawSkipped = false;
-  let openClawError: string | null = null;
+  let openClawError = false;
+
+  const integrationEnabled = process.env.OPENCLAW_INTEGRATION_ENABLED === 'true';
 
   if (integrationEnabled) {
-    const openClawUrl = process.env.OPENCLAW_API_URL;
-    const openClawKey = process.env.OPENCLAW_API_KEY;
-
     try {
-      const res = await fetch(
-        `${openClawUrl}/api/sessions/${run.session_key}/restart`,
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${openClawKey}`,
-            'Content-Type': 'application/json',
-          },
+      const openClawUrl = process.env.OPENCLAW_API_URL;
+      const openClawKey = process.env.OPENCLAW_API_KEY;
+
+      const spawnRes = await fetch(`${openClawUrl}/api/sessions/spawn`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-OpenClaw-Key': openClawKey ?? '',
         },
-      );
-      if (!res.ok) {
-        const errBody = await res.text();
-        openClawError = `OpenClaw returned ${res.status}: ${errBody}`;
+        body: JSON.stringify({
+          agent: original.agent,
+          brief: original.brief,
+          spawnedBy: original.spawned_by,
+          projectTag: original.project_tag,
+        }),
+      });
+
+      if (spawnRes.ok) {
+        const spawnData = await spawnRes.json();
+        newSessionKey = spawnData.sessionKey ?? null;
+      } else {
+        console.error('[restart] OpenClaw spawn failed', spawnRes.status);
+        openClawError = true;
       }
     } catch (err) {
-      openClawError = err instanceof Error ? err.message : String(err);
-    }
-
-    if (openClawError) {
-      return NextResponse.json({ error: openClawError }, { status: 502 });
+      console.error('[restart] OpenClaw unreachable', err);
+      openClawError = true;
     }
   } else {
     openClawSkipped = true;
   }
 
-  // Reset run to spawned state
-  const { data: updated, error: updateError } = await supabase
+  // If OpenClaw didn't provide a session key, generate a placeholder
+  if (!newSessionKey) {
+    newSessionKey = `restart-${original.session_key}-${Date.now()}`;
+  }
+
+  const now = new Date().toISOString();
+
+  // Insert new top-level run (restart is fresh, parentRunId = null)
+  const { data: newRun, error: insertErr } = await supabase
     .from('agent_runs')
-    .update({
+    .insert({
+      agent: original.agent,
+      brief: original.brief,
+      session_key: newSessionKey,
+      spawned_by: original.spawned_by,
+      slack_channel: original.slack_channel,
+      slack_thread_ts: original.slack_thread_ts,
+      project_tag: original.project_tag,
+      started_at: now,
       status: 'spawned',
-      ended_at: null,
-      last_heartbeat: null,
-      started_at: new Date().toISOString(),
+      parent_run_id: null,
+      output_truncated: false,
     })
-    .eq('id', id)
     .select()
     .single();
 
-  if (updateError) return serverError(updateError.message);
+  if (insertErr || !newRun) return serverError(insertErr?.message ?? 'Failed to create restart run');
 
-  return NextResponse.json({ run: updated, openClawSkipped });
+  return NextResponse.json(
+    {
+      ...toRunResponse(newRun),
+      openClawSkipped,
+      openClawError,
+    },
+    { status: 201 },
+  );
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function toRunResponse(r: any) {
+  return {
+    id: r.id,
+    agent: r.agent,
+    brief: r.brief,
+    status: r.status,
+    sessionKey: r.session_key,
+    spawnedBy: r.spawned_by,
+    slackChannel: r.slack_channel,
+    slackThreadTs: r.slack_thread_ts,
+    projectTag: r.project_tag,
+    startedAt: r.started_at,
+    lastHeartbeat: r.last_heartbeat,
+    endedAt: r.ended_at,
+    outputTail: r.output_tail,
+    outputTruncated: r.output_truncated,
+    parentRunId: r.parent_run_id,
+    archivedAt: r.archived_at,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+  };
 }

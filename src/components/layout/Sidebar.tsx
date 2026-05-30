@@ -48,24 +48,29 @@ interface NavItem {
   disabled?: boolean;
   adminOnly?: boolean;
   permission?: 'view_webhooks' | 'soft_delete' | 'view_feedback' | 'docs:read';
+  group?: string;
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { label: 'Dashboard', href: '/', icon: <DashboardOutlinedIcon /> },
-  { label: 'Projects', href: '/projects', icon: <FolderOutlinedIcon /> },
-  { label: 'Test Runs', href: '/runs', icon: <PlaylistPlayIcon /> },
-  { label: 'Reports', href: '/reports', icon: <AssessmentOutlinedIcon /> },
-  { label: 'Docs', href: '/docs', icon: <MenuBookOutlinedIcon /> },
-  { label: 'Feedback', href: '/feedback-inbox', icon: <InboxOutlinedIcon />, permission: 'view_feedback' as const },
-  { label: 'Integrations', href: '/integrations', icon: <WebhookOutlinedIcon />, permission: 'view_webhooks' },
-  { label: 'Users', href: '/users', icon: <PeopleOutlineIcon />, adminOnly: true },
+  { label: 'Dashboard', href: '/' , icon: <DashboardOutlinedIcon /> },
+  { label: 'Projects',  href: '/projects', icon: <FolderOutlinedIcon />,    group: 'Testing' },
+  { label: 'Test Runs', href: '/runs',     icon: <PlaylistPlayIcon />,       group: 'Testing' },
+  { label: 'Reports',   href: '/reports',  icon: <AssessmentOutlinedIcon />, group: 'Testing' },
+  { label: 'Agents',    href: '/agents',   icon: <SmartToyOutlinedIcon />,   group: 'Intelligence' },
+  { label: 'Registry',  href: '/registry', icon: <GridViewOutlinedIcon />,   group: 'Intelligence' },
+  { label: 'Docs',      href: '/docs',     icon: <MenuBookOutlinedIcon />,   group: 'Intelligence' },
+  { label: 'Feedback',     href: '/feedback-inbox', icon: <InboxOutlinedIcon />,  permission: 'view_feedback' as const, group: 'Admin' },
+  { label: 'Integrations', href: '/integrations',   icon: <WebhookOutlinedIcon />, permission: 'view_webhooks',          group: 'Admin' },
+  { label: 'Users',        href: '/users',           icon: <PeopleOutlineIcon />,  adminOnly: true,                      group: 'Admin' },
   /** Trash — soft-deleted test cases. Editor+ only; the API enforces 403 for Viewers. */
-  { label: 'Trash', href: '/trash', icon: <DeleteOutlineIcon />, permission: 'soft_delete' as const },
-  /** Agent Runs — FullThrottle agent session visibility */
-  { label: 'Agents', href: '/agents', icon: <SmartToyOutlinedIcon /> },
-  /** Agent Registry — registered FullThrottle agent profiles */
-  { label: 'Registry', href: '/registry', icon: <GridViewOutlinedIcon /> },
+  { label: 'Trash',        href: '/trash',           icon: <DeleteOutlineIcon />,  permission: 'soft_delete' as const,   group: 'Admin' },
 ];
+
+const NAV_GROUP_DEFAULTS: Record<string, boolean> = {
+  Testing:      true,
+  Intelligence: true,
+  Admin:        false,
+};
 
 function extractProjectId(pathname: string): string | null {
   const match = pathname.match(/^\/projects\/([^/]+)/);
@@ -89,6 +94,13 @@ export default function Sidebar({ collapsed }: { collapsed: boolean }) {
 
   const [suites, setSuites] = useState<Suite[]>([]);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+
+  // Nav group open/closed state (Testing, Intelligence, Admin)
+  const [navGroupsOpen, setNavGroupsOpen] = useState<Record<string, boolean>>(NAV_GROUP_DEFAULTS);
+
+  const toggleNavGroup = useCallback((groupName: string) => {
+    setNavGroupsOpen((prev) => ({ ...prev, [groupName]: !prev[groupName] }));
+  }, []);
   const projectId = extractProjectId(pathname);
   const activeSuiteId = extractSuiteId(pathname);
 
@@ -163,6 +175,201 @@ export default function Sidebar({ collapsed }: { collapsed: boolean }) {
   const width = collapsed ? SIDEBAR_COLLAPSED : SIDEBAR_WIDTH;
   const roleColor = semanticColors.role[role] ?? palette.neutral.main;
 
+  // Force-open any nav group that contains the current active route
+  const forcedOpenGroups = useMemo(() => {
+    const forced = new Set<string>();
+    for (const item of visibleNavItems) {
+      if (!item.group) continue;
+      const isActive = item.href === '/'
+        ? pathname === '/'
+        : item.href === '/projects'
+          ? pathname.startsWith('/projects')
+          : pathname.startsWith(item.href);
+      if (isActive) forced.add(item.group);
+    }
+    return forced;
+  }, [visibleNavItems, pathname]);
+
+  // Render a single nav item button (shared between grouped and flat modes)
+  const renderNavItem = (item: NavItem) => {
+    const isActive = item.href === '/'
+      ? pathname === '/'
+      : item.href === '/projects'
+        ? pathname.startsWith('/projects')
+        : pathname.startsWith(item.href);
+
+    return (
+      <Box key={item.href}>
+        <Tooltip title={collapsed ? item.label : ''} placement="right">
+          <ListItemButton
+            component={item.disabled ? 'div' : Link}
+            href={item.disabled ? undefined : item.href}
+            disabled={item.disabled}
+            selected={isActive}
+            sx={{
+              mb: 0.5,
+              minHeight: 40,
+              px: collapsed ? 1.5 : 2,
+              justifyContent: collapsed ? 'center' : 'flex-start',
+              position: 'relative',
+              overflow: 'hidden',
+            }}
+          >
+            {isActive && !activeSuiteId && (
+              <motion.div
+                layoutId="sidebar-indicator"
+                style={{
+                  position: 'absolute',
+                  left: 0,
+                  top: 0,
+                  bottom: 0,
+                  width: 3,
+                  backgroundColor: palette.primary.main,
+                  borderRadius: '0 2px 2px 0',
+                }}
+                transition={{ duration: 0.2, ease: 'easeOut' }}
+              />
+            )}
+            <ListItemIcon
+              sx={{
+                minWidth: collapsed ? 0 : 36,
+                color: isActive ? 'primary.main' : 'text.secondary',
+                justifyContent: 'center',
+              }}
+            >
+              {item.icon}
+            </ListItemIcon>
+            {!collapsed && (
+              <ListItemText
+                primary={item.label}
+                primaryTypographyProps={{
+                  fontSize: '0.8125rem',
+                  fontWeight: isActive ? 600 : 400,
+                }}
+              />
+            )}
+          </ListItemButton>
+        </Tooltip>
+
+        {item.href === '/projects' && !collapsed && (
+          <Collapse in={!!projectId && suites.length > 0}>
+            <List disablePadding sx={{ pl: 1 }}>
+              {groupedSuites.map((group) => {
+                const groupKey = group.name || '__ungrouped__';
+                const isGroupExpanded = expandedGroups.has(groupKey);
+                const hasGroupHeader = !!group.name;
+
+                return (
+                  <Box key={groupKey}>
+                    {hasGroupHeader && (
+                      <ListItemButton
+                        onClick={() => toggleGroup(groupKey)}
+                        sx={{
+                          minHeight: 28,
+                          py: 0.25,
+                          px: 1,
+                          mb: 0.25,
+                          borderRadius: '4px',
+                        }}
+                      >
+                        {isGroupExpanded ? (
+                          <ExpandLessIcon sx={{ fontSize: 14, color: 'text.secondary', mr: 0.5 }} />
+                        ) : (
+                          <ExpandMoreIcon sx={{ fontSize: 14, color: 'text.secondary', mr: 0.5 }} />
+                        )}
+                        <ListItemText
+                          primary={group.name}
+                          primaryTypographyProps={{
+                            fontSize: '0.65rem',
+                            fontWeight: 700,
+                            color: 'text.secondary',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.05em',
+                          }}
+                        />
+                        <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.6rem' }}>
+                          {group.suites.length}
+                        </Typography>
+                      </ListItemButton>
+                    )}
+                    <Collapse in={isGroupExpanded || !hasGroupHeader}>
+                      <List disablePadding sx={{ pl: hasGroupHeader ? 1 : 0 }}>
+                        {group.suites.map((suite) => {
+                          const suiteColor = semanticColors.suiteColors[suite.color_index % 5];
+                          const isActiveSuite = activeSuiteId === suite.id;
+                          return (
+                            <ListItemButton
+                              key={suite.id}
+                              component={Link}
+                              href={`/projects/${projectId}/suites/${suite.id}`}
+                              selected={isActiveSuite}
+                              sx={{
+                                minHeight: 30,
+                                py: 0.25,
+                                px: 1.5,
+                                mb: 0.25,
+                                borderRadius: '4px',
+                                position: 'relative',
+                              }}
+                            >
+                              {isActiveSuite && (
+                                <motion.div
+                                  layoutId="sidebar-indicator"
+                                  style={{
+                                    position: 'absolute',
+                                    left: 0,
+                                    top: 0,
+                                    bottom: 0,
+                                    width: 3,
+                                    backgroundColor: suiteColor,
+                                    borderRadius: '0 2px 2px 0',
+                                  }}
+                                  transition={{ duration: 0.2, ease: 'easeOut' }}
+                                />
+                              )}
+                              <ListItemIcon sx={{ minWidth: 20 }}>
+                                <FiberManualRecordIcon
+                                  sx={{ fontSize: 7, color: suiteColor }}
+                                />
+                              </ListItemIcon>
+                              <ListItemText
+                                primary={suite.name}
+                                primaryTypographyProps={{
+                                  fontSize: '0.7rem',
+                                  fontWeight: isActiveSuite ? 600 : 400,
+                                  color: isActiveSuite ? suiteColor : 'text.secondary',
+                                  whiteSpace: 'nowrap',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                }}
+                              />
+                              <Chip
+                                label={suite.prefix}
+                                size="small"
+                                sx={{
+                                  height: 16,
+                                  fontSize: '0.55rem',
+                                  fontWeight: 600,
+                                  bgcolor: alpha(suiteColor, 0.12),
+                                  color: suiteColor,
+                                  '& .MuiChip-label': { px: 0.5 },
+                                }}
+                              />
+                            </ListItemButton>
+                          );
+                        })}
+                      </List>
+                    </Collapse>
+                  </Box>
+                );
+              })}
+            </List>
+          </Collapse>
+        )}
+      </Box>
+    );
+  };
+
   return (
     <Box
       component="nav"
@@ -212,183 +419,67 @@ export default function Sidebar({ collapsed }: { collapsed: boolean }) {
       <Divider />
 
       <List sx={{ flex: 1, px: 1, py: 1.5, overflow: 'auto' }}>
-        {visibleNavItems.map((item) => {
-          const isActive = item.href === '/'
-            ? pathname === '/'
-            : item.href === '/projects'
-              ? pathname.startsWith('/projects')
-              : pathname.startsWith(item.href);
-          return (
-            <Box key={item.href}>
-              <Tooltip title={collapsed ? item.label : ''} placement="right">
-                <ListItemButton
-                  component={item.disabled ? 'div' : Link}
-                  href={item.disabled ? undefined : item.href}
-                  disabled={item.disabled}
-                  selected={isActive}
-                  sx={{
-                    mb: 0.5,
-                    minHeight: 40,
-                    px: collapsed ? 1.5 : 2,
-                    justifyContent: collapsed ? 'center' : 'flex-start',
-                    position: 'relative',
-                    overflow: 'hidden',
-                  }}
-                >
-                  {isActive && !activeSuiteId && (
-                    <motion.div
-                      layoutId="sidebar-indicator"
-                      style={{
-                        position: 'absolute',
-                        left: 0,
-                        top: 0,
-                        bottom: 0,
-                        width: 3,
-                        backgroundColor: palette.primary.main,
-                        borderRadius: '0 2px 2px 0',
-                      }}
-                      transition={{ duration: 0.2, ease: 'easeOut' }}
-                    />
-                  )}
-                  <ListItemIcon
-                    sx={{
-                      minWidth: collapsed ? 0 : 36,
-                      color: isActive ? 'primary.main' : 'text.secondary',
-                      justifyContent: 'center',
-                    }}
-                  >
-                    {item.icon}
-                  </ListItemIcon>
-                  {!collapsed && (
-                    <ListItemText
-                      primary={item.label}
-                      primaryTypographyProps={{
-                        fontSize: '0.8125rem',
-                        fontWeight: isActive ? 600 : 400,
-                      }}
-                    />
-                  )}
-                </ListItemButton>
-              </Tooltip>
+        {collapsed
+          ? /* Icon-only mode: flat list, no group headers */
+            visibleNavItems.map((item) => renderNavItem(item))
+          : /* Expanded mode: group headers + collapsible sections */
+            (() => {
+              const seenGroups = new Set<string>();
+              const nodes: React.ReactNode[] = [];
 
-              {item.href === '/projects' && !collapsed && (
-                <Collapse in={!!projectId && suites.length > 0}>
-                  <List disablePadding sx={{ pl: 1 }}>
-                    {groupedSuites.map((group) => {
-                      const groupKey = group.name || '__ungrouped__';
-                      const isGroupExpanded = expandedGroups.has(groupKey);
-                      const hasGroupHeader = !!group.name;
+              for (const item of visibleNavItems) {
+                if (!item.group) {
+                  // Top-level ungrouped item (Dashboard)
+                  nodes.push(renderNavItem(item));
+                  continue;
+                }
 
-                      return (
-                        <Box key={groupKey}>
-                          {hasGroupHeader && (
-                            <ListItemButton
-                              onClick={() => toggleGroup(groupKey)}
-                              sx={{
-                                minHeight: 28,
-                                py: 0.25,
-                                px: 1,
-                                mb: 0.25,
-                                borderRadius: '4px',
-                              }}
-                            >
-                              {isGroupExpanded ? (
-                                <ExpandLessIcon sx={{ fontSize: 14, color: 'text.secondary', mr: 0.5 }} />
-                              ) : (
-                                <ExpandMoreIcon sx={{ fontSize: 14, color: 'text.secondary', mr: 0.5 }} />
-                              )}
-                              <ListItemText
-                                primary={group.name}
-                                primaryTypographyProps={{
-                                  fontSize: '0.65rem',
-                                  fontWeight: 700,
-                                  color: 'text.secondary',
-                                  textTransform: 'uppercase',
-                                  letterSpacing: '0.05em',
-                                }}
-                              />
-                              <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.6rem' }}>
-                                {group.suites.length}
-                              </Typography>
-                            </ListItemButton>
-                          )}
-                          <Collapse in={isGroupExpanded || !hasGroupHeader}>
-                            <List disablePadding sx={{ pl: hasGroupHeader ? 1 : 0 }}>
-                              {group.suites.map((suite) => {
-                                const suiteColor = semanticColors.suiteColors[suite.color_index % 5];
-                                const isActiveSuite = activeSuiteId === suite.id;
-                                return (
-                                  <ListItemButton
-                                    key={suite.id}
-                                    component={Link}
-                                    href={`/projects/${projectId}/suites/${suite.id}`}
-                                    selected={isActiveSuite}
-                                    sx={{
-                                      minHeight: 30,
-                                      py: 0.25,
-                                      px: 1.5,
-                                      mb: 0.25,
-                                      borderRadius: '4px',
-                                      position: 'relative',
-                                    }}
-                                  >
-                                    {isActiveSuite && (
-                                      <motion.div
-                                        layoutId="sidebar-indicator"
-                                        style={{
-                                          position: 'absolute',
-                                          left: 0,
-                                          top: 0,
-                                          bottom: 0,
-                                          width: 3,
-                                          backgroundColor: suiteColor,
-                                          borderRadius: '0 2px 2px 0',
-                                        }}
-                                        transition={{ duration: 0.2, ease: 'easeOut' }}
-                                      />
-                                    )}
-                                    <ListItemIcon sx={{ minWidth: 20 }}>
-                                      <FiberManualRecordIcon
-                                        sx={{ fontSize: 7, color: suiteColor }}
-                                      />
-                                    </ListItemIcon>
-                                    <ListItemText
-                                      primary={suite.name}
-                                      primaryTypographyProps={{
-                                        fontSize: '0.7rem',
-                                        fontWeight: isActiveSuite ? 600 : 400,
-                                        color: isActiveSuite ? suiteColor : 'text.secondary',
-                                        whiteSpace: 'nowrap',
-                                        overflow: 'hidden',
-                                        textOverflow: 'ellipsis',
-                                      }}
-                                    />
-                                    <Chip
-                                      label={suite.prefix}
-                                      size="small"
-                                      sx={{
-                                        height: 16,
-                                        fontSize: '0.55rem',
-                                        fontWeight: 600,
-                                        bgcolor: alpha(suiteColor, 0.12),
-                                        color: suiteColor,
-                                        '& .MuiChip-label': { px: 0.5 },
-                                      }}
-                                    />
-                                  </ListItemButton>
-                                );
-                              })}
-                            </List>
-                          </Collapse>
-                        </Box>
-                      );
-                    })}
-                  </List>
-                </Collapse>
-              )}
-            </Box>
-          );
-        })}
+                if (!seenGroups.has(item.group)) {
+                  seenGroups.add(item.group);
+                  const groupName = item.group;
+                  const groupItems = visibleNavItems.filter((i) => i.group === groupName);
+                  const isOpen = forcedOpenGroups.has(groupName) || (navGroupsOpen[groupName] ?? false);
+
+                  nodes.push(
+                    <Box key={`group-${groupName}`}>
+                      {/* Group header */}
+                      <ListItemButton
+                        onClick={() => toggleNavGroup(groupName)}
+                        sx={{
+                          minHeight: 28,
+                          py: 0.25,
+                          px: 1,
+                          mb: 0.25,
+                          borderRadius: '4px',
+                        }}
+                      >
+                        <ListItemText
+                          primary={groupName}
+                          primaryTypographyProps={{
+                            fontSize: '0.65rem',
+                            fontWeight: 700,
+                            color: 'text.secondary',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.05em',
+                          }}
+                        />
+                        {isOpen
+                          ? <ExpandLessIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
+                          : <ExpandMoreIcon sx={{ fontSize: 14, color: 'text.secondary' }} />}
+                      </ListItemButton>
+
+                      {/* Group items */}
+                      <Collapse in={isOpen}>
+                        {groupItems.map((gi) => renderNavItem(gi))}
+                      </Collapse>
+                    </Box>
+                  );
+                }
+              }
+
+              return nodes;
+            })()
+        }
       </List>
 
       <Divider />

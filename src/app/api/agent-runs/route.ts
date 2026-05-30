@@ -1,56 +1,12 @@
 import { NextResponse } from 'next/server';
-import { withDualAuth, validationError, serverError } from '@/lib/api/helpers';
-import {
-  createAgentRunSchema,
-  listAgentRunsQuerySchema,
-} from '@/lib/validations/agent-run';
+import { withAgentAuth, validationError, serverError } from '@/lib/api/helpers';
+import { CreateRunSchema, OUTPUT_TAIL_MAX_BYTES } from '@/lib/validations/agent-run';
 
-// ---------------------------------------------------------------------------
-// GET /api/agent-runs — list agent runs with optional filters
-// ---------------------------------------------------------------------------
-export async function GET(request: Request) {
-  const auth = await withDualAuth(request);
-  if (!auth.ok) return auth.response;
-  const { supabase } = auth.ctx;
-
-  const { searchParams } = new URL(request.url);
-  const queryResult = listAgentRunsQuerySchema.safeParse({
-    agent: searchParams.get('agent') ?? undefined,
-    status: searchParams.get('status') ?? undefined,
-    project_tag: searchParams.get('project_tag') ?? undefined,
-    include_archived: searchParams.get('include_archived') ?? undefined,
-    limit: searchParams.get('limit') ?? undefined,
-  });
-
-  if (!queryResult.success) return validationError(queryResult.error.flatten());
-  const { agent, status, project_tag, include_archived, limit } = queryResult.data;
-
-  let query = supabase
-    .from('agent_runs')
-    .select('*')
-    .order('started_at', { ascending: false })
-    .limit(limit ?? 100);
-
-  if (agent) query = query.eq('agent', agent);
-  if (status) query = query.eq('status', status);
-  if (project_tag) query = query.eq('project_tag', project_tag);
-  if (include_archived !== 'true') {
-    query = query.is('archived_at', null);
-  }
-
-  const { data, error } = await query;
-  if (error) return serverError(error.message);
-
-  return NextResponse.json(data ?? []);
-}
-
-// ---------------------------------------------------------------------------
-// POST /api/agent-runs — create a new agent run record
-// ---------------------------------------------------------------------------
+// POST /api/agent-runs — register new run at spawn time
 export async function POST(request: Request) {
-  const auth = await withDualAuth(request);
+  const auth = await withAgentAuth();
   if (!auth.ok) return auth.response;
-  const { supabase } = auth.ctx;
+  const { supabase } = auth;
 
   let body: unknown;
   try {
@@ -59,53 +15,159 @@ export async function POST(request: Request) {
     return validationError('Invalid JSON body');
   }
 
-  const parsed = createAgentRunSchema.safeParse(body);
+  const parsed = CreateRunSchema.safeParse(body);
   if (!parsed.success) return validationError(parsed.error.flatten());
 
   const {
     agent,
     brief,
-    session_key,
-    spawned_by,
-    slack_channel,
-    slack_thread_ts,
-    project_tag,
-    started_at,
-    parent_run_id,
-    task_title,
-    task_description,
-    expected_outcome,
+    sessionKey,
+    spawnedBy,
+    slackChannel,
+    slackThreadTs,
+    projectTag,
+    startedAt,
+    parentRunId,
   } = parsed.data;
+
+  // Verify parentRunId exists if supplied
+  if (parentRunId) {
+    const { data: parent, error: parentErr } = await supabase
+      .from('agent_runs')
+      .select('id')
+      .eq('id', parentRunId)
+      .single();
+
+    if (parentErr || !parent) {
+      return NextResponse.json(
+        { error: 'Parent run not found', code: 'PARENT_NOT_FOUND' },
+        { status: 404 },
+      );
+    }
+  }
 
   const { data: run, error } = await supabase
     .from('agent_runs')
     .insert({
       agent,
       brief,
-      session_key,
-      spawned_by,
-      slack_channel: slack_channel ?? null,
-      slack_thread_ts: slack_thread_ts ?? null,
-      project_tag: project_tag ?? null,
-      started_at,
-      parent_run_id: parent_run_id ?? null,
-      task_title: task_title ?? null,
-      task_description: task_description ?? null,
-      expected_outcome: expected_outcome ?? null,
-      status: 'spawned',
+      session_key: sessionKey,
+      spawned_by: spawnedBy,
+      slack_channel: slackChannel ?? null,
+      slack_thread_ts: slackThreadTs ?? null,
+      project_tag: projectTag ?? null,
+      started_at: startedAt,
+      parent_run_id: parentRunId ?? null,
+      output_truncated: false,
     })
     .select()
     .single();
 
   if (error) {
+    // Unique constraint violation on session_key
     if (error.code === '23505') {
       return NextResponse.json(
-        { error: 'session_key already exists' },
+        { error: 'Session key already exists', code: 'SESSION_KEY_CONFLICT' },
         { status: 409 },
       );
     }
     return serverError(error.message);
   }
 
-  return NextResponse.json(run, { status: 201 });
+  return NextResponse.json(toRunResponse(run), { status: 201 });
+}
+
+// GET /api/agent-runs — list runs with filters and pagination
+export async function GET(request: Request) {
+  const auth = await withAgentAuth();
+  if (!auth.ok) return auth.response;
+  const { supabase } = auth;
+
+  const { searchParams } = new URL(request.url);
+  const statusParam = searchParams.get('status');
+  const agentParam = searchParams.get('agent');
+  const projectTag = searchParams.get('projectTag');
+  const parentRunId = searchParams.get('parentRunId');
+  const includeArchived = searchParams.get('includeArchived') === 'true';
+  const limit = Math.min(parseInt(searchParams.get('limit') ?? '100', 10), 100);
+  const offset = parseInt(searchParams.get('offset') ?? '0', 10);
+
+  const statusFilter = statusParam ? statusParam.split(',').filter(Boolean) : null;
+  const agentFilter = agentParam ? agentParam.split(',').filter(Boolean) : null;
+
+  // Build query
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let query = (supabase as any)
+    .from('agent_runs')
+    .select('*', { count: 'exact' })
+    .order('started_at', { ascending: false })
+    .range(offset, offset + limit - 1);
+
+  if (!includeArchived) {
+    query = query.is('archived_at', null);
+  }
+  if (statusFilter?.length) {
+    query = query.in('status', statusFilter);
+  }
+  if (agentFilter?.length) {
+    query = query.in('agent', agentFilter);
+  }
+  if (projectTag) {
+    query = query.eq('project_tag', projectTag);
+  }
+  if (parentRunId) {
+    query = query.eq('parent_run_id', parentRunId);
+  }
+
+  const { data: runs, error, count } = await query;
+  if (error) return serverError(error.message);
+
+  // Enforce output tail size cap on reads too (belt-and-suspenders)
+  const mappedRuns = (runs ?? []).map((r: Record<string, unknown>) => {
+    if (typeof r.output_tail === 'string' && Buffer.byteLength(r.output_tail) > OUTPUT_TAIL_MAX_BYTES) {
+      const truncated = truncateFromFront(r.output_tail);
+      return { ...r, output_tail: truncated, output_truncated: true };
+    }
+    return r;
+  });
+
+  return NextResponse.json({
+    runs: mappedRuns.map(toRunResponse),
+    total: count ?? 0,
+    limit,
+    offset,
+  });
+}
+
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
+function truncateFromFront(text: string): string {
+  // Keep last OUTPUT_TAIL_MAX_BYTES bytes (UTF-8 aware trim)
+  const buf = Buffer.from(text, 'utf8');
+  if (buf.byteLength <= OUTPUT_TAIL_MAX_BYTES) return text;
+  return buf.slice(buf.byteLength - OUTPUT_TAIL_MAX_BYTES).toString('utf8');
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function toRunResponse(r: any) {
+  return {
+    id: r.id,
+    agent: r.agent,
+    brief: r.brief,
+    status: r.status,
+    sessionKey: r.session_key,
+    spawnedBy: r.spawned_by,
+    slackChannel: r.slack_channel,
+    slackThreadTs: r.slack_thread_ts,
+    projectTag: r.project_tag,
+    startedAt: r.started_at,
+    lastHeartbeat: r.last_heartbeat,
+    endedAt: r.ended_at,
+    outputTail: r.output_tail,
+    outputTruncated: r.output_truncated,
+    parentRunId: r.parent_run_id,
+    archivedAt: r.archived_at,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+  };
 }
