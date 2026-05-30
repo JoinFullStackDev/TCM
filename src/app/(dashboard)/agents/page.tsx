@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense } from 'react';
+import { Suspense, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
@@ -22,12 +22,17 @@ function AgentsPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const filters: AgentRunFilters = {
+  const filters: AgentRunFilters = useMemo(() => ({
     agent: searchParams.get('agent') ?? undefined,
     status: searchParams.get('status') ?? undefined,
     projectTag: searchParams.get('projectTag') ?? undefined,
     includeArchived: searchParams.get('includeArchived') === 'true',
-  };
+  }), [
+    searchParams.get('agent'),
+    searchParams.get('status'),
+    searchParams.get('projectTag'),
+    searchParams.get('includeArchived'),
+  ]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const { runs, total, loading, error, refresh } = useAgentRuns(filters);
   const { top, children } = groupRuns(runs);
