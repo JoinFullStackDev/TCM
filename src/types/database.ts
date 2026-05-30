@@ -540,6 +540,36 @@ export interface NoteWithAttachments extends Note {
   linked_test_cases?: LinkedTestCase[];
 }
 
+// ============================================================
+// Docs
+// ============================================================
+
+export interface DocFolder {
+  id: string;
+  name: string;
+  parent_id: string | null;
+  project_id: string | null;
+  position: number;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DocSummary {
+  id: string;
+  title: string;
+  folder_id: string | null;
+  project_id: string | null;
+  created_by: string;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Doc extends DocSummary {
+  content: string | null;
+}
+
 export interface DashboardSummary {
   user_section: DashboardUserSection;
   global_section: DashboardGlobalSection;
