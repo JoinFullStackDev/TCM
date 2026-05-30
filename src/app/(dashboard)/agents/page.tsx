@@ -15,14 +15,21 @@ import Collapse from '@mui/material/Collapse';
 import Paper from '@mui/material/Paper';
 import Button from '@mui/material/Button';
 import Alert from '@mui/material/Alert';
+import Switch from '@mui/material/Switch';
+import FormControlLabel from '@mui/material/FormControlLabel';
 import StopIcon from '@mui/icons-material/Stop';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import SmartToyOutlinedIcon from '@mui/icons-material/SmartToyOutlined';
 import FiberManualRecordIcon from '@mui/icons-material/FiberManualRecord';
+import ArchiveOutlinedIcon from '@mui/icons-material/ArchiveOutlined';
+import WarningAmberOutlinedIcon from '@mui/icons-material/WarningAmberOutlined';
+import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import PageTransition from '@/components/animations/PageTransition';
 import { palette } from '@/theme/palette';
+import { useAuth } from '@/components/providers/AuthProvider';
+import RunDetailDrawer from './RunDetailDrawer';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -42,6 +49,7 @@ interface AgentRun {
   id: string;
   agent: AgentName;
   brief: string;
+  task_title: string | null;
   status: AgentRunStatus;
   session_key: string;
   spawned_by: string;
@@ -64,6 +72,7 @@ interface AgentRun {
 // ---------------------------------------------------------------------------
 const ACTIVE_STATUSES: AgentRunStatus[] = ['spawned', 'running', 'waiting'];
 const TERMINAL_STATUSES: AgentRunStatus[] = ['done', 'failed', 'timed_out', 'killed'];
+const STALL_THRESHOLD_MS = 30 * 60 * 1000; // 30 minutes
 
 const STATUS_CONFIG: Record<
   AgentRunStatus,
@@ -149,14 +158,28 @@ interface RunRowProps {
   isChild: boolean;
   onKill: (id: string) => void;
   onRestart: (id: string) => void;
+  onArchive: (id: string) => void;
+  onSelect: (id: string) => void;
   actionLoading: string | null;
 }
 
-function RunRow({ run, isChild, onKill, onRestart, actionLoading }: RunRowProps) {
+function RunRow({ run, isChild, onKill, onRestart, onArchive, onSelect, actionLoading }: RunRowProps) {
   const [expanded, setExpanded] = useState(false);
   const isActive = ACTIVE_STATUSES.includes(run.status);
   const isTerminal = TERMINAL_STATUSES.includes(run.status);
   const loading = actionLoading === run.id;
+
+  // Stall detection: active run, has heartbeat, heartbeat is >30min ago
+  const isStalled =
+    (run.status === 'running' || run.status === 'waiting') &&
+    !!run.last_heartbeat &&
+    Date.now() - new Date(run.last_heartbeat).getTime() > STALL_THRESHOLD_MS;
+
+  // Slack thread URL
+  const slackUrl =
+    run.slack_channel && run.slack_thread_ts
+      ? `https://slack.com/archives/${run.slack_channel}/p${run.slack_thread_ts.replace('.', '')}`
+      : null;
 
   return (
     <Box
@@ -175,8 +198,43 @@ function RunRow({ run, isChild, onKill, onRestart, actionLoading }: RunRowProps)
           border: `1px solid ${isActive ? palette.primary.main + '33' : '#ffffff11'}`,
           borderRadius: 1.5,
           transition: 'border-color 0.2s',
+          position: 'relative',
+          cursor: 'pointer',
+          '&:hover': { borderColor: isActive ? palette.primary.main + '55' : '#ffffff22' },
+        }}
+        onClick={(e) => {
+          // Don't open drawer if clicking an action button
+          if ((e.target as HTMLElement).closest('button')) return;
+          onSelect(run.id);
         }}
       >
+        {/* Stall badge */}
+        {isStalled && (
+          <Box
+            sx={{
+              position: 'absolute',
+              top: 8,
+              right: 8,
+              zIndex: 1,
+              pointerEvents: 'none',
+            }}
+          >
+            <Chip
+              icon={<WarningAmberOutlinedIcon sx={{ fontSize: '0.75rem !important' }} />}
+              label="Stalled?"
+              size="small"
+              sx={{
+                bgcolor: '#F59E0B22',
+                color: '#F59E0B',
+                border: '1px solid #F59E0B44',
+                fontWeight: 600,
+                fontSize: '0.6rem',
+                height: 20,
+              }}
+            />
+          </Box>
+        )}
+
         <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5 }}>
           {/* Agent badge + status */}
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, minWidth: 80 }}>
@@ -195,16 +253,16 @@ function RunRow({ run, isChild, onKill, onRestart, actionLoading }: RunRowProps)
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
                   whiteSpace: 'nowrap',
-                  maxWidth: 500,
+                  maxWidth: 460,
                 }}
-                title={run.brief}
+                title={run.task_title || run.brief}
               >
                 {isChild ? (
                   <Typography component="span" variant="caption" sx={{ color: palette.primary.light, mr: 0.5 }}>
                     (sub-session)
                   </Typography>
                 ) : null}
-                {run.brief}
+                {run.task_title || run.brief}
               </Typography>
             </Box>
 
@@ -224,7 +282,7 @@ function RunRow({ run, isChild, onKill, onRestart, actionLoading }: RunRowProps)
                   sx={{ bgcolor: '#ffffff11', color: '#94a3b8', height: 16, fontSize: '0.6rem' }}
                 />
               )}
-              {run.slack_channel && (
+              {run.slack_channel && !run.slack_thread_ts && (
                 <Typography variant="caption" sx={{ color: '#64748b' }}>
                   #{run.slack_channel}
                 </Typography>
@@ -237,6 +295,22 @@ function RunRow({ run, isChild, onKill, onRestart, actionLoading }: RunRowProps)
 
           {/* Actions */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0 }}>
+            {/* Slack link */}
+            {slackUrl && (
+              <Tooltip title="View Slack thread">
+                <IconButton
+                  size="small"
+                  component="a"
+                  href={slackUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  sx={{ color: '#64748b', '&:hover': { color: '#94a3b8' } }}
+                >
+                  <OpenInNewIcon sx={{ fontSize: 14 }} />
+                </IconButton>
+              </Tooltip>
+            )}
+
             {run.output_tail && (
               <Tooltip title={expanded ? 'Collapse output' : 'Expand output'}>
                 <IconButton size="small" onClick={() => setExpanded((e) => !e)} sx={{ color: '#64748b' }}>
@@ -244,6 +318,23 @@ function RunRow({ run, isChild, onKill, onRestart, actionLoading }: RunRowProps)
                 </IconButton>
               </Tooltip>
             )}
+
+            {/* Archive button for terminal runs */}
+            {isTerminal && (
+              <Tooltip title="Archive run">
+                <span>
+                  <IconButton
+                    size="small"
+                    onClick={() => onArchive(run.id)}
+                    disabled={loading}
+                    sx={{ color: '#64748b', '&:hover': { bgcolor: '#ffffff11' } }}
+                  >
+                    {loading ? <CircularProgress size={14} /> : <ArchiveOutlinedIcon fontSize="small" />}
+                  </IconButton>
+                </span>
+              </Tooltip>
+            )}
+
             {isActive && (
               <Tooltip title="Kill run">
                 <span>
@@ -298,11 +389,11 @@ function RunRow({ run, isChild, onKill, onRestart, actionLoading }: RunRowProps)
               component="pre"
               sx={{
                 fontFamily: 'monospace',
+                fontSize: '0.7rem',
                 color: '#94a3b8',
                 whiteSpace: 'pre-wrap',
                 wordBreak: 'break-all',
                 m: 0,
-                fontSize: '0.7rem',
               }}
             >
               {run.output_tail}
@@ -318,13 +409,18 @@ function RunRow({ run, isChild, onKill, onRestart, actionLoading }: RunRowProps)
 // Main page
 // ---------------------------------------------------------------------------
 export default function AgentsPage() {
+  const { profile } = useAuth();
+  const isAdmin = profile?.role === 'admin';
+
   const [runs, setRuns] = useState<AgentRun[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [filterAgent, setFilterAgent] = useState<string>('');
   const [filterStatus, setFilterStatus] = useState<string>('');
-  const [includeArchived, setIncludeArchived] = useState(false);
+  const [projectFilter, setProjectFilter] = useState<string>('all');
+  const [showArchived, setShowArchived] = useState(false);
+  const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
 
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const visibilityRef = useRef(true);
@@ -335,7 +431,7 @@ export default function AgentsPage() {
       const params = new URLSearchParams();
       if (filterAgent) params.set('agent', filterAgent);
       if (filterStatus) params.set('status', filterStatus);
-      if (includeArchived) params.set('include_archived', 'true');
+      if (showArchived) params.set('include_archived', 'true');
       params.set('limit', '100');
 
       const res = await fetch(`/api/agent-runs?${params.toString()}`);
@@ -348,7 +444,7 @@ export default function AgentsPage() {
     } finally {
       if (!quiet) setLoading(false);
     }
-  }, [filterAgent, filterStatus, includeArchived]);
+  }, [filterAgent, filterStatus, showArchived]);
 
   // Adaptive polling: 5s when active runs, 30s otherwise
   const setupPolling = useCallback(
@@ -414,9 +510,59 @@ export default function AgentsPage() {
     }
   };
 
-  // Build tree: top-level runs + children mapped by parent_run_id
-  const topLevel = runs.filter((r) => !r.parent_run_id);
-  const childrenByParent = runs.reduce<Record<string, AgentRun[]>>((acc, r) => {
+  const handleArchive = async (id: string) => {
+    setActionLoading(id);
+    try {
+      const res = await fetch(`/api/agent-runs/${id}/archive`, { method: 'POST' });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error ?? `HTTP ${res.status}`);
+      }
+      // Remove from local state immediately
+      setRuns((prev) => prev.filter((r) => r.id !== id));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Archive failed');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleBulkArchive = async () => {
+    if (!window.confirm('Archive all completed runs older than 7 days?')) return;
+    try {
+      const res = await fetch('/api/agent-runs/bulk-archive', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ days: 7 }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const { archived } = await res.json();
+      await fetchRuns(true);
+      setError(null);
+      // Brief success message via error state (reuse for simplicity)
+      if (archived > 0) {
+        setError(`Archived ${archived} run${archived !== 1 ? 's' : ''}`);
+        setTimeout(() => setError(null), 3000);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Bulk archive failed');
+    }
+  };
+
+  // Derive distinct project tags for the filter dropdown
+  const projectTags = Array.from(
+    new Set(runs.map((r) => r.project_tag).filter(Boolean) as string[]),
+  ).sort();
+
+  // Apply client-side project filter
+  const filteredRuns =
+    projectFilter === 'all'
+      ? runs
+      : runs.filter((r) => r.project_tag === projectFilter);
+
+  // Build tree
+  const topLevel = filteredRuns.filter((r) => !r.parent_run_id);
+  const childrenByParent = filteredRuns.reduce<Record<string, AgentRun[]>>((acc, r) => {
     if (r.parent_run_id) {
       if (!acc[r.parent_run_id]) acc[r.parent_run_id] = [];
       acc[r.parent_run_id].push(r);
@@ -425,8 +571,8 @@ export default function AgentsPage() {
   }, {});
 
   // Orphan children (parent not in current result set) shown at top level
-  const parentIds = new Set(runs.map((r) => r.id));
-  const orphans = runs.filter(
+  const parentIds = new Set(filteredRuns.map((r) => r.id));
+  const orphans = filteredRuns.filter(
     (r) => r.parent_run_id && !parentIds.has(r.parent_run_id),
   );
 
@@ -501,23 +647,66 @@ export default function AgentsPage() {
             </Select>
           </FormControl>
 
-          <Button
-            size="small"
-            variant={includeArchived ? 'contained' : 'outlined'}
-            onClick={() => setIncludeArchived((v) => !v)}
-            sx={{ color: includeArchived ? '#fff' : '#94a3b8', borderColor: '#ffffff22' }}
-          >
-            {includeArchived ? 'Hiding archived' : 'Show archived'}
-          </Button>
+          {/* Project filter */}
+          {projectTags.length > 0 && (
+            <FormControl size="small" sx={{ minWidth: 140 }}>
+              <InputLabel>Project</InputLabel>
+              <Select
+                value={projectFilter}
+                label="Project"
+                onChange={(e) => setProjectFilter(e.target.value)}
+              >
+                <MenuItem value="all">All Projects</MenuItem>
+                {projectTags.map((tag) => (
+                  <MenuItem key={tag} value={tag}>
+                    {tag}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          )}
 
-          {(filterAgent || filterStatus || includeArchived) && (
+          {/* Show Archived toggle */}
+          <FormControlLabel
+            control={
+              <Switch
+                checked={showArchived}
+                onChange={(e) => setShowArchived(e.target.checked)}
+                size="small"
+              />
+            }
+            label={
+              <Typography variant="caption" sx={{ color: '#94a3b8' }}>
+                Show Archived
+              </Typography>
+            }
+            sx={{ ml: 0 }}
+          />
+
+          {/* Bulk archive — admin only */}
+          {isAdmin && (
+            <Tooltip title="Archive completed runs older than 7 days">
+              <Button
+                size="small"
+                variant="outlined"
+                startIcon={<ArchiveOutlinedIcon fontSize="small" />}
+                onClick={handleBulkArchive}
+                sx={{ color: '#64748b', borderColor: '#ffffff22', fontSize: '0.7rem' }}
+              >
+                Archive Old Runs
+              </Button>
+            </Tooltip>
+          )}
+
+          {(filterAgent || filterStatus || projectFilter !== 'all' || showArchived) && (
             <Button
               size="small"
               variant="text"
               onClick={() => {
                 setFilterAgent('');
                 setFilterStatus('');
-                setIncludeArchived(false);
+                setProjectFilter('all');
+                setShowArchived(false);
               }}
               sx={{ color: '#64748b' }}
             >
@@ -526,9 +715,13 @@ export default function AgentsPage() {
           )}
         </Box>
 
-        {/* Error */}
+        {/* Error / info */}
         {error && (
-          <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
+          <Alert
+            severity={error.startsWith('Archived') ? 'success' : 'error'}
+            sx={{ mb: 2 }}
+            onClose={() => setError(null)}
+          >
             {error}
           </Alert>
         )}
@@ -538,7 +731,7 @@ export default function AgentsPage() {
           <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
             <CircularProgress size={32} />
           </Box>
-        ) : runs.length === 0 ? (
+        ) : filteredRuns.length === 0 ? (
           <Box
             sx={{
               textAlign: 'center',
@@ -561,6 +754,8 @@ export default function AgentsPage() {
                 isChild={false}
                 onKill={handleKill}
                 onRestart={handleRestart}
+                onArchive={handleArchive}
+                onSelect={setSelectedRunId}
                 actionLoading={actionLoading}
               />
             ))}
@@ -573,6 +768,8 @@ export default function AgentsPage() {
                   isChild={false}
                   onKill={handleKill}
                   onRestart={handleRestart}
+                  onArchive={handleArchive}
+                  onSelect={setSelectedRunId}
                   actionLoading={actionLoading}
                 />
                 {(childrenByParent[run.id] ?? []).map((child) => (
@@ -582,6 +779,8 @@ export default function AgentsPage() {
                     isChild
                     onKill={handleKill}
                     onRestart={handleRestart}
+                    onArchive={handleArchive}
+                    onSelect={setSelectedRunId}
                     actionLoading={actionLoading}
                   />
                 ))}
@@ -591,7 +790,7 @@ export default function AgentsPage() {
         )}
 
         {/* Legend */}
-        {runs.length > 0 && (
+        {filteredRuns.length > 0 && (
           <Box sx={{ mt: 3, display: 'flex', gap: 2, flexWrap: 'wrap' }}>
             {(Object.entries(STATUS_CONFIG) as [AgentRunStatus, (typeof STATUS_CONFIG)[AgentRunStatus]][]).map(
               ([status, cfg]) => (
@@ -606,6 +805,13 @@ export default function AgentsPage() {
           </Box>
         )}
       </Box>
+
+      {/* Run Detail Drawer */}
+      <RunDetailDrawer
+        runId={selectedRunId}
+        onClose={() => setSelectedRunId(null)}
+        onOpenRun={(id) => setSelectedRunId(id)}
+      />
     </PageTransition>
   );
 }

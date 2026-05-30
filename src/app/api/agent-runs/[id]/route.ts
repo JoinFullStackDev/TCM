@@ -6,6 +6,41 @@ const TERMINAL_STATUSES = new Set(['done', 'failed', 'timed_out', 'killed']);
 const OUTPUT_TAIL_MAX_BYTES = 64 * 1024; // 64KB
 
 // ---------------------------------------------------------------------------
+// GET /api/agent-runs/:id — fetch full run with children and notes
+// ---------------------------------------------------------------------------
+export async function GET(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const auth = await withDualAuth(request);
+  if (!auth.ok) return auth.response;
+  const { supabase } = auth.ctx;
+  const { id } = await params;
+
+  const { data: run, error } = await supabase
+    .from('agent_runs')
+    .select('*')
+    .eq('id', id)
+    .single();
+
+  if (error || !run) return notFound('Run');
+
+  const { data: children } = await supabase
+    .from('agent_runs')
+    .select('id, agent, brief, task_title, status, started_at')
+    .eq('parent_run_id', id)
+    .order('started_at', { ascending: true });
+
+  const { data: notes } = await supabase
+    .from('run_notes')
+    .select('*')
+    .eq('run_id', id)
+    .order('created_at', { ascending: true });
+
+  return NextResponse.json({ ...run, children: children ?? [], notes: notes ?? [] });
+}
+
+// ---------------------------------------------------------------------------
 // PATCH /api/agent-runs/:id — update status, heartbeat, or output_tail
 // ---------------------------------------------------------------------------
 export async function PATCH(

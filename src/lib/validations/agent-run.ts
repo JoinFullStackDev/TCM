@@ -22,6 +22,9 @@ export const createAgentRunSchema = z.object({
   project_tag: z.string().trim().max(64).nullable().optional(),
   started_at: z.string().datetime(),
   parent_run_id: z.string().uuid().nullable().optional(),
+  task_title: z.string().max(256).optional(),
+  task_description: z.string().optional(),
+  expected_outcome: z.string().optional(),
 });
 
 export const updateAgentRunSchema = z.object({
@@ -29,6 +32,9 @@ export const updateAgentRunSchema = z.object({
   output_tail: z.string().nullable().optional(),
   last_heartbeat: z.string().datetime().optional(),
   ended_at: z.string().datetime().nullable().optional(),
+  task_title: z.string().max(256).optional(),
+  task_description: z.string().optional(),
+  expected_outcome: z.string().optional(),
 });
 
 export const listAgentRunsQuerySchema = z.object({

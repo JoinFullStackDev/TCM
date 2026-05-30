@@ -72,6 +72,9 @@ export async function POST(request: Request) {
     project_tag,
     started_at,
     parent_run_id,
+    task_title,
+    task_description,
+    expected_outcome,
   } = parsed.data;
 
   const { data: run, error } = await supabase
@@ -86,6 +89,9 @@ export async function POST(request: Request) {
       project_tag: project_tag ?? null,
       started_at,
       parent_run_id: parent_run_id ?? null,
+      task_title: task_title ?? null,
+      task_description: task_description ?? null,
+      expected_outcome: expected_outcome ?? null,
       status: 'spawned',
     })
     .select()
