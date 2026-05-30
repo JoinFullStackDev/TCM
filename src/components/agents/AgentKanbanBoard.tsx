@@ -11,25 +11,26 @@ import type { AgentRun, AgentRunStatus, AgentName } from '@/types/agent-run';
 
 export type BoardGrouping = 'status' | 'agent';
 
-const STATUS_COLUMNS: AgentRunStatus[] = [
-  'spawned',
-  'running',
-  'waiting',
+// Active groups spawned/running/waiting into one column since only spawned is reliably set today
+const STATUS_COLUMNS: Array<AgentRunStatus | 'active'> = [
+  'active',
   'done',
   'failed',
-  'timed_out',
   'killed',
 ];
 
-const STATUS_LABELS: Record<AgentRunStatus, string> = {
-  spawned: 'Spawned',
-  running: 'Running',
-  waiting: 'Waiting',
+const STATUS_LABELS: Record<AgentRunStatus | 'active', string> = {
+  active: 'Active',
+  spawned: 'Active',
+  running: 'Active',
+  waiting: 'Active',
   done: 'Done',
   failed: 'Failed',
-  timed_out: 'Timed Out',
+  timed_out: 'Failed',
   killed: 'Killed',
 };
+
+const ACTIVE_STATUSES = new Set<AgentRunStatus>(['spawned', 'running', 'waiting']);
 
 const AGENT_COLUMNS: AgentName[] = ['riff', 'arc', 'axel', 'torque', 'clutch'];
 
@@ -65,10 +66,14 @@ export default function AgentKanbanBoard({
 
   const columns =
     grouping === 'status'
-      ? STATUS_COLUMNS.map((status) => ({
-          key: status,
-          label: STATUS_LABELS[status],
-          runs: topLevel.filter((r) => r.status === status),
+      ? STATUS_COLUMNS.map((col) => ({
+          key: col,
+          label: STATUS_LABELS[col],
+          runs: col === 'active'
+            ? topLevel.filter((r) => ACTIVE_STATUSES.has(r.status))
+            : col === 'failed'
+              ? topLevel.filter((r) => r.status === 'failed' || r.status === 'timed_out')
+              : topLevel.filter((r) => r.status === col),
         }))
       : AGENT_COLUMNS.map((agent) => ({
           key: agent,
