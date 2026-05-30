@@ -8,6 +8,8 @@ const PUBLIC_PATHS = [
   '/api/webhooks',
   '/feedback',                 // public submission form page
   '/api/feedback/projects',    // public project list for form dropdown
+  '/api/agent-runs',           // dual-auth: Bearer token (Clutch) or session cookie
+  '/api/cron/',                // internal cron endpoints
 ];
 
 export async function middleware(request: NextRequest) {

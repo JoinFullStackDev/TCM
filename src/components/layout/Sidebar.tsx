@@ -29,6 +29,7 @@ import InboxOutlinedIcon from '@mui/icons-material/InboxOutlined';
 import FiberManualRecordIcon from '@mui/icons-material/FiberManualRecord';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
+import SmartToyOutlinedIcon from '@mui/icons-material/SmartToyOutlined';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { ROLE_LABELS } from '@/lib/auth/rbac';
@@ -59,6 +60,8 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Users', href: '/users', icon: <PeopleOutlineIcon />, adminOnly: true },
   /** Trash — soft-deleted test cases. Editor+ only; the API enforces 403 for Viewers. */
   { label: 'Trash', href: '/trash', icon: <DeleteOutlineIcon />, permission: 'soft_delete' as const },
+  /** Agent Runs — FullThrottle agent session visibility */
+  { label: 'Agents', href: '/agents', icon: <SmartToyOutlinedIcon /> },
 ];
 
 function extractProjectId(pathname: string): string | null {
