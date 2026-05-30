@@ -55,8 +55,15 @@ export default function NoteEditor({
       ImageExtension.configure({ inline: true }),
       Markdown,
     ],
-    content,
+    content: '',
     editable: !readOnly,
+    onCreate: ({ editor: e }) => {
+      // Use the markdown manager to parse content so raw markdown is
+      // rendered as formatted nodes instead of plain text.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const json = (e.storage.markdown as any).manager.parse(content ?? '') as import('@tiptap/core').JSONContent;
+      e.commands.setContent(json, { emitUpdate: false });
+    },
     onUpdate: ({ editor: e }) => {
       const markdown = e.getMarkdown();
       const text = e.getText();
