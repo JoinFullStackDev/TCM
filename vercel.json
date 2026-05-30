@@ -1,0 +1,12 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/timeout-agent-runs",
+      "schedule": "*/2 * * * *"
+    },
+    {
+      "path": "/api/cron/archive-agent-runs",
+      "schedule": "0 * * * *"
+    }
+  ]
+}

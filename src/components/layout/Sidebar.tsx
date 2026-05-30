@@ -29,6 +29,7 @@ import InboxOutlinedIcon from '@mui/icons-material/InboxOutlined';
 import FiberManualRecordIcon from '@mui/icons-material/FiberManualRecord';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
+import SmartToyOutlinedIcon from '@mui/icons-material/SmartToyOutlined';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { ROLE_LABELS } from '@/lib/auth/rbac';
@@ -53,6 +54,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Projects', href: '/projects', icon: <FolderOutlinedIcon /> },
   { label: 'Test Runs', href: '/runs', icon: <PlaylistPlayIcon /> },
   { label: 'Reports', href: '/reports', icon: <AssessmentOutlinedIcon /> },
+  { label: 'Agents', href: '/agents', icon: <SmartToyOutlinedIcon /> },
   { label: 'Docs', href: '/docs', icon: <MenuBookOutlinedIcon /> },
   { label: 'Feedback', href: '/feedback-inbox', icon: <InboxOutlinedIcon />, permission: 'view_feedback' as const },
   { label: 'Integrations', href: '/integrations', icon: <WebhookOutlinedIcon />, permission: 'view_webhooks' },

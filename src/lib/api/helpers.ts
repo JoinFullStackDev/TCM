@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { hasPermission, type Permission } from '@/lib/auth/rbac';
 import type { Profile, UserRole } from '@/types/database';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { headers } from 'next/headers';
 
 export interface AuthContext {
   user: { id: string; email?: string };
@@ -103,4 +104,49 @@ export function serverError(message = 'Internal server error') {
     { error: message },
     { status: 500 },
   );
+}
+
+/**
+ * Dual-auth helper for the agent-runs API.
+ * Accepts either:
+ *  - Supabase session cookie (browser)
+ *  - Authorization: Bearer <supabase-jwt> (Clutch server-to-server)
+ *
+ * Returns a service-role Supabase client so route handlers can bypass RLS
+ * when writing on behalf of agents. Auth is still validated — only the DB
+ * client is elevated.
+ */
+export async function withAgentAuth(): Promise<
+  { ok: true; supabase: SupabaseClient } | { ok: false; response: NextResponse }
+> {
+  const headerStore = await headers();
+  const authorization = headerStore.get('authorization') ?? '';
+
+  if (authorization.startsWith('Bearer ')) {
+    const token = authorization.slice(7);
+    // Validate the JWT against Supabase by fetching the user
+    const supabase = await createServiceClient();
+    const { data, error } = await supabase.auth.getUser(token);
+    if (error || !data.user) {
+      return {
+        ok: false,
+        response: NextResponse.json({ error: 'Unauthorized', code: 'UNAUTHORIZED' }, { status: 401 }),
+      };
+    }
+    return { ok: true, supabase };
+  }
+
+  // Fall back to cookie auth
+  const cookieClient = await createClient();
+  const { data, error } = await cookieClient.auth.getUser();
+  if (error || !data.user) {
+    return {
+      ok: false,
+      response: NextResponse.json({ error: 'Unauthorized', code: 'UNAUTHORIZED' }, { status: 401 }),
+    };
+  }
+
+  // Return service client so RLS doesn't interfere with agent-runs writes
+  const supabase = await createServiceClient();
+  return { ok: true, supabase };
 }
