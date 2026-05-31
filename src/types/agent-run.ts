@@ -13,6 +13,9 @@ export interface AgentRun {
   id: string;
   agent: AgentName;
   brief: string;
+  taskTitle: string | null;
+  taskDescription: string | null;
+  expectedOutcome: string | null;
   status: AgentRunStatus;
   sessionKey: string;
   spawnedBy: string;

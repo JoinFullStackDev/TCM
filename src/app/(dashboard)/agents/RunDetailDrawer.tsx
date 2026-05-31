@@ -37,9 +37,9 @@ interface ChildRun {
   id: string;
   agent: AgentName;
   brief: string;
-  task_title: string | null;
+  taskTitle: string | null;
   status: AgentRunStatus;
-  started_at: string;
+  startedAt: string;
 }
 
 interface RunNote {
@@ -54,22 +54,22 @@ interface RunDetail {
   id: string;
   agent: AgentName;
   brief: string;
-  task_title: string | null;
-  task_description: string | null;
-  expected_outcome: string | null;
+  taskTitle: string | null;
+  taskDescription: string | null;
+  expectedOutcome: string | null;
   status: AgentRunStatus;
-  session_key: string;
-  spawned_by: string;
-  slack_channel: string | null;
-  slack_thread_ts: string | null;
-  project_tag: string | null;
-  started_at: string;
-  last_heartbeat: string | null;
-  ended_at: string | null;
-  output_tail: string | null;
-  output_truncated: boolean;
-  parent_run_id: string | null;
-  archived_at: string | null;
+  sessionKey: string;
+  spawnedBy: string;
+  slackChannel: string | null;
+  slackThreadTs: string | null;
+  projectTag: string | null;
+  startedAt: string;
+  lastHeartbeat: string | null;
+  endedAt: string | null;
+  outputTail: string | null;
+  outputTruncated: boolean;
+  parentRunId: string | null;
+  archivedAt: string | null;
   children: ChildRun[];
   notes: RunNote[];
 }
@@ -173,17 +173,17 @@ export default function RunDetailDrawer({ runId, onClose, onOpenRun }: Props) {
   // Build timeline steps
   const timelineSteps: { label: string; ts: string | null }[] = [];
   if (run) {
-    timelineSteps.push({ label: 'Spawned', ts: run.started_at });
+    timelineSteps.push({ label: 'Spawned', ts: run.startedAt });
     if (run.status !== 'spawned') {
-      timelineSteps.push({ label: 'Running', ts: run.last_heartbeat });
+      timelineSteps.push({ label: 'Running', ts: run.lastHeartbeat });
     }
-    if (run.ended_at) {
+    if (run.endedAt) {
       const label = run.status === 'done' ? 'Done'
         : run.status === 'failed' ? 'Failed'
         : run.status === 'killed' ? 'Killed'
         : run.status === 'timed_out' ? 'Timed Out'
         : run.status;
-      timelineSteps.push({ label, ts: run.ended_at });
+      timelineSteps.push({ label, ts: run.endedAt });
     }
   }
 
@@ -220,7 +220,7 @@ export default function RunDetailDrawer({ runId, onClose, onOpenRun }: Props) {
                 variant="subtitle1"
                 sx={{ color: '#f1f5f9', fontWeight: 600, wordBreak: 'break-word' }}
               >
-                {run.task_title || run.brief}
+                {run.taskTitle || run.brief}
               </Typography>
               <Box sx={{ display: 'flex', gap: 1, mt: 1, flexWrap: 'wrap' }}>
                 <Chip
@@ -276,31 +276,31 @@ export default function RunDetailDrawer({ runId, onClose, onOpenRun }: Props) {
           <>
             {/* Meta row */}
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75, mb: 2.5 }}>
-              <MetaRow label="Spawned by" value={run.spawned_by} />
-              {run.project_tag && <MetaRow label="Project" value={run.project_tag} />}
-              {run.session_key && <MetaRow label="Session" value={run.session_key} />}
+              <MetaRow label="Spawned by" value={run.spawnedBy} />
+              {run.projectTag && <MetaRow label="Project" value={run.projectTag} />}
+              {run.sessionKey && <MetaRow label="Session" value={run.sessionKey} />}
             </Box>
 
             <Divider sx={{ borderColor: '#ffffff11', mb: 2.5 }} />
 
             {/* Timestamps */}
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75, mb: 2.5 }}>
-              <MetaRow label="Started" value={formatTs(run.started_at)} />
-              {run.ended_at && <MetaRow label="Ended" value={formatTs(run.ended_at)} />}
-              {run.last_heartbeat && (
-                <MetaRow label="Last heartbeat" value={formatTs(run.last_heartbeat)} />
+              <MetaRow label="Started" value={formatTs(run.startedAt)} />
+              {run.endedAt && <MetaRow label="Ended" value={formatTs(run.endedAt)} />}
+              {run.lastHeartbeat && (
+                <MetaRow label="Last heartbeat" value={formatTs(run.lastHeartbeat)} />
               )}
             </Box>
 
             {/* Slack link */}
-            {run.slack_channel && run.slack_thread_ts && (
+            {run.slackChannel && run.slackThreadTs && (
               <Box sx={{ mb: 2.5 }}>
                 <Button
                   size="small"
                   variant="outlined"
                   endIcon={<OpenInNewIcon fontSize="small" />}
                   component="a"
-                  href={`https://slack.com/archives/${run.slack_channel}/p${run.slack_thread_ts.replace('.', '')}`}
+                  href={`https://slack.com/archives/${run.slackChannel}/p${run.slackThreadTs.replace('.', '')}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   sx={{ borderColor: '#ffffff22', color: '#94a3b8', fontSize: '0.7rem' }}
@@ -342,39 +342,39 @@ export default function RunDetailDrawer({ runId, onClose, onOpenRun }: Props) {
             </Stepper>
 
             {/* task_description */}
-            {run.task_description && (
+            {run.taskDescription && (
               <>
                 <Divider sx={{ borderColor: '#ffffff11', mb: 2 }} />
                 <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1, display: 'block', mb: 1 }}>
                   Task Description
                 </Typography>
                 <Typography variant="body2" sx={{ color: '#94a3b8', lineHeight: 1.7 }}>
-                  {run.task_description}
+                  {run.taskDescription}
                 </Typography>
               </>
             )}
 
             {/* expected_outcome */}
-            {run.expected_outcome && (
+            {run.expectedOutcome && (
               <>
                 <Divider sx={{ borderColor: '#ffffff11', my: 2 }} />
                 <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1, display: 'block', mb: 1 }}>
                   Expected Outcome
                 </Typography>
                 <Typography variant="body2" sx={{ color: '#94a3b8', lineHeight: 1.7 }}>
-                  {run.expected_outcome}
+                  {run.expectedOutcome}
                 </Typography>
               </>
             )}
 
             {/* Output */}
-            {run.output_tail && (
+            {run.outputTail && (
               <>
                 <Divider sx={{ borderColor: '#ffffff11', my: 2 }} />
                 <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1, display: 'block', mb: 1 }}>
                   Output
                 </Typography>
-                {run.output_truncated && (
+                {run.outputTruncated && (
                   <Alert
                     severity="warning"
                     sx={{ mb: 1, py: 0.25, '& .MuiAlert-message': { fontSize: '0.7rem' } }}
@@ -404,14 +404,14 @@ export default function RunDetailDrawer({ runId, onClose, onOpenRun }: Props) {
                       m: 0,
                     }}
                   >
-                    {run.output_tail}
+                    {run.outputTail}
                   </Typography>
                 </Box>
               </>
             )}
 
             {/* Parent run */}
-            {run.parent_run_id && (
+            {run.parentRunId && (
               <>
                 <Divider sx={{ borderColor: '#ffffff11', my: 2 }} />
                 <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1, display: 'block', mb: 1 }}>
@@ -420,7 +420,7 @@ export default function RunDetailDrawer({ runId, onClose, onOpenRun }: Props) {
                 <Button
                   size="small"
                   variant="outlined"
-                  onClick={() => onOpenRun(run.parent_run_id!)}
+                  onClick={() => onOpenRun(run.parentRunId!)}
                   sx={{ borderColor: '#ffffff22', color: '#94a3b8', fontSize: '0.7rem' }}
                 >
                   View Parent Run
@@ -484,7 +484,7 @@ export default function RunDetailDrawer({ runId, onClose, onOpenRun }: Props) {
                           whiteSpace: 'nowrap',
                         }}
                       >
-                        {child.task_title || child.brief}
+                        {child.taskTitle || child.brief}
                       </Typography>
                     </Box>
                   ))}

@@ -16,6 +16,10 @@ export const CreateRunSchema = z.object({
   projectTag: z.string().max(64).optional(),
   startedAt: z.string().datetime(),
   parentRunId: z.string().uuid().optional().nullable(),
+  // Task detail fields (replaces FullThrottle task tracking)
+  taskTitle: z.string().max(256).optional().nullable(),
+  taskDescription: z.string().optional().nullable(),
+  expectedOutcome: z.string().optional().nullable(),
 });
 
 export const PatchRunSchema = z
