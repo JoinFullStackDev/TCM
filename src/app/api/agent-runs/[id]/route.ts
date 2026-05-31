@@ -6,6 +6,43 @@ interface RouteContext {
   params: Promise<{ id: string }>;
 }
 
+// GET /api/agent-runs/:id — fetch single run with children and notes
+export async function GET(_request: Request, context: RouteContext) {
+  const auth = await withAgentAuth();
+  if (!auth.ok) return auth.response;
+  const { supabase } = auth;
+
+  const { id } = await context.params;
+
+  const { data: run, error } = await supabase
+    .from('agent_runs')
+    .select('*')
+    .eq('id', id)
+    .single();
+
+  if (error || !run) return notFound('Agent run');
+
+  // Fetch child runs
+  const { data: children } = await supabase
+    .from('agent_runs')
+    .select('id, agent, brief, task_title, status, started_at')
+    .eq('parent_run_id', id)
+    .order('started_at', { ascending: true });
+
+  // Fetch notes
+  const { data: notes } = await supabase
+    .from('run_notes')
+    .select('*')
+    .eq('run_id', id)
+    .order('created_at', { ascending: true });
+
+  return NextResponse.json({
+    ...toRunResponse(run),
+    children: children ?? [],
+    notes: notes ?? [],
+  });
+}
+
 // PATCH /api/agent-runs/:id — lifecycle updates and heartbeats
 export async function PATCH(request: Request, context: RouteContext) {
   const auth = await withAgentAuth();
@@ -69,7 +106,6 @@ export async function PATCH(request: Request, context: RouteContext) {
   if (endedAt !== undefined) updatePayload.ended_at = endedAt;
 
   // Atomic UPDATE with stale-heartbeat guard and terminal-state guard
-  // Build WHERE conditions using supabase filters (service client, so RLS bypassed)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let query = (supabase as any)
     .from('agent_runs')
@@ -123,6 +159,9 @@ function toRunResponse(r: any) {
     id: r.id,
     agent: r.agent,
     brief: r.brief,
+    taskTitle: r.task_title ?? null,
+    taskDescription: r.task_description ?? null,
+    expectedOutcome: r.expected_outcome ?? null,
     status: r.status,
     sessionKey: r.session_key,
     spawnedBy: r.spawned_by,

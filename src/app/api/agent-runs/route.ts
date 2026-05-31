@@ -28,6 +28,9 @@ export async function POST(request: Request) {
     projectTag,
     startedAt,
     parentRunId,
+    taskTitle,
+    taskDescription,
+    expectedOutcome,
   } = parsed.data;
 
   // Verify parentRunId exists if supplied
@@ -59,6 +62,9 @@ export async function POST(request: Request) {
       started_at: startedAt,
       parent_run_id: parentRunId ?? null,
       output_truncated: false,
+      task_title: taskTitle ?? null,
+      task_description: taskDescription ?? null,
+      expected_outcome: expectedOutcome ?? null,
     })
     .select()
     .single();
@@ -154,6 +160,9 @@ function toRunResponse(r: any) {
     id: r.id,
     agent: r.agent,
     brief: r.brief,
+    taskTitle: r.task_title ?? null,
+    taskDescription: r.task_description ?? null,
+    expectedOutcome: r.expected_outcome ?? null,
     status: r.status,
     sessionKey: r.session_key,
     spawnedBy: r.spawned_by,

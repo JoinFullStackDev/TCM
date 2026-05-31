@@ -10,7 +10,12 @@ const IDLE_INTERVAL_MS = 30_000;
 
 function buildUrl(filters: AgentRunFilters): string {
   const params = new URLSearchParams();
-  if (filters.status) params.set('status', filters.status);
+  if (filters.status) {
+    const statusValue = filters.status === 'active'
+      ? 'spawned,running,waiting'
+      : filters.status;
+    params.set('status', statusValue);
+  }
   if (filters.agent) params.set('agent', filters.agent);
   if (filters.projectTag) params.set('projectTag', filters.projectTag);
   if (filters.includeArchived) params.set('includeArchived', 'true');

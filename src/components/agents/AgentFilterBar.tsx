@@ -12,12 +12,9 @@ import type { AgentRunFilters } from '@/types/agent-run';
 
 const STATUS_OPTIONS = [
   { value: '', label: 'All statuses' },
-  { value: 'spawned', label: 'Spawned' },
-  { value: 'running', label: 'Running' },
-  { value: 'waiting', label: 'Waiting' },
+  { value: 'active', label: 'Active' },
   { value: 'done', label: 'Done' },
   { value: 'failed', label: 'Failed' },
-  { value: 'timed_out', label: 'Timed Out' },
   { value: 'killed', label: 'Killed' },
 ];
 
