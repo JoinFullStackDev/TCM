@@ -9,6 +9,7 @@ const AGENT_COLORS: Record<AgentName, string> = {
   arc: '#00695C',
   torque: '#E65100',
   clutch: '#37474F',
+  scout: '#558B2F',
 };
 
 interface Props {
