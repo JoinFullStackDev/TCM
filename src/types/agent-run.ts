@@ -7,7 +7,7 @@ export type AgentRunStatus =
   | 'timed_out'
   | 'killed';
 
-export type AgentName = 'axel' | 'riff' | 'arc' | 'torque' | 'clutch';
+export type AgentName = 'axel' | 'riff' | 'arc' | 'torque' | 'clutch' | 'scout';
 
 export interface AgentRun {
   id: string;

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 export const TERMINAL_STATUSES = ['done', 'failed', 'timed_out', 'killed'] as const;
-export const VALID_AGENTS = ['axel', 'riff', 'arc', 'torque', 'clutch'] as const;
+export const VALID_AGENTS = ['axel', 'riff', 'arc', 'torque', 'clutch', 'scout'] as const;
 export const VALID_STATUSES = ['spawned', 'running', 'waiting', 'done', 'failed', 'timed_out', 'killed'] as const;
 
 export const OUTPUT_TAIL_MAX_BYTES = 65_536;

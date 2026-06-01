@@ -25,6 +25,7 @@ const AGENT_OPTIONS = [
   { value: 'arc', label: 'ARC' },
   { value: 'torque', label: 'Torque' },
   { value: 'clutch', label: 'Clutch' },
+  { value: 'scout', label: 'Scout' },
 ];
 
 interface Props {

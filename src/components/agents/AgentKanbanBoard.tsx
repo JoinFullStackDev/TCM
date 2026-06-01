@@ -32,7 +32,7 @@ const STATUS_LABELS: Record<AgentRunStatus | 'active', string> = {
 
 const ACTIVE_STATUSES = new Set<AgentRunStatus>(['spawned', 'running', 'waiting']);
 
-const AGENT_COLUMNS: AgentName[] = ['riff', 'arc', 'axel', 'torque', 'clutch'];
+const AGENT_COLUMNS: AgentName[] = ['riff', 'arc', 'axel', 'torque', 'clutch', 'scout'];
 
 const AGENT_LABELS: Record<AgentName, string> = {
   riff: 'Riff',
@@ -40,6 +40,7 @@ const AGENT_LABELS: Record<AgentName, string> = {
   axel: 'Axel',
   torque: 'Torque',
   clutch: 'Clutch',
+  scout: 'Scout',
 };
 
 interface Props {
