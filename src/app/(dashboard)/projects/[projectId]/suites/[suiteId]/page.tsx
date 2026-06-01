@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useState, useEffect, useCallback, useRef, useMemo, Suspense } from 'react';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
@@ -34,9 +34,10 @@ interface ColumnConfig {
   columnVisibility?: Record<string, boolean>;
 }
 
-export default function SuiteViewPage() {
+function SuiteViewPageInner() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const projectId = params.projectId as string;
   const suiteId = params.suiteId as string;
   const { can, isLoading: authLoading } = useAuth();
@@ -222,10 +223,30 @@ export default function SuiteViewPage() {
     fetchTestCases();
   }, [selectedRunId, fetchTestCases]);
 
+  // Permalink: read ?case= on mount after data load completes.
+  const permalinkHandled = useRef(false);
+  useEffect(() => {
+    if (loading || permalinkHandled.current) return;
+    const caseId = searchParams.get('case');
+    if (!caseId) return;
+    permalinkHandled.current = true;
+    // Validate: case must exist in the loaded suite and belong to this suiteId
+    const match = testCases.find((tc) => tc.id === caseId && tc.suite_id === suiteId);
+    if (!match) {
+      // Silently drop invalid / cross-suite / soft-deleted param
+      router.replace(`/projects/${projectId}/suites/${suiteId}`, { scroll: false });
+      return;
+    }
+    setDrawerTestCaseId(caseId);
+    setCreateMode(false);
+    setDrawerOpen(true);
+  }, [loading, searchParams, testCases, projectId, suiteId, router]);
+
   const handleRowClick = (tc: TestCaseRow) => {
     setDrawerTestCaseId(tc.id);
     setCreateMode(false);
     setDrawerOpen(true);
+    router.replace(`/projects/${projectId}/suites/${suiteId}?case=${tc.id}`, { scroll: false });
   };
 
   const handleCreate = () => {
@@ -238,6 +259,7 @@ export default function SuiteViewPage() {
     setDrawerOpen(false);
     setDrawerTestCaseId(null);
     setCreateMode(false);
+    router.replace(`/projects/${projectId}/suites/${suiteId}`, { scroll: false });
   };
 
   const handleSaved = () => {
@@ -589,5 +611,19 @@ export default function SuiteViewPage() {
         />
       </Box>
     </PageTransition>
+  );
+}
+
+export default function SuiteViewPage() {
+  return (
+    <Suspense
+      fallback={
+        <Box sx={{ display: 'flex', justifyContent: 'center', pt: 8 }}>
+          <CircularProgress />
+        </Box>
+      }
+    >
+      <SuiteViewPageInner />
+    </Suspense>
   );
 }

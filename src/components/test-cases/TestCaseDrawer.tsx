@@ -25,6 +25,7 @@ import CloseIcon from '@mui/icons-material/Close';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import LockIcon from '@mui/icons-material/Lock';
 import EditIcon from '@mui/icons-material/Edit';
+import LinkIcon from '@mui/icons-material/Link';
 import { alpha } from '@mui/material/styles';
 import { palette } from '@/theme/palette';
 import StepEditor, { type StepData } from './StepEditor';
@@ -105,6 +106,7 @@ export default function TestCaseDrawer({
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [linkCopied, setLinkCopied] = useState(false);
   const [trashDialogOpen, setTrashDialogOpen] = useState(false);
   const [trashWarning, setTrashWarning] = useState<string | null>(null);
 
@@ -359,6 +361,17 @@ export default function TestCaseDrawer({
     }
   };
 
+  const handleCopyLink = () => {
+    if (!testCaseId || !projectId) return;
+    const url = `${window.location.origin}/projects/${projectId}/suites/${suiteId}?case=${testCaseId}`;
+    navigator.clipboard.writeText(url).then(() => {
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
+    }).catch(() => {
+      // Clipboard unavailable — silently ignore
+    });
+  };
+
   const handlePlatformToggle = (platform: Platform) => {
     setPlatformTags((prev) =>
       prev.includes(platform)
@@ -429,6 +442,13 @@ export default function TestCaseDrawer({
             <Typography variant="h6" sx={{ flex: 1, fontWeight: 600 }}>
               {createMode ? 'New Test Case' : title || 'Test Case'}
             </Typography>
+            {!createMode && testCaseId && (
+              <Tooltip title={linkCopied ? 'Link copied!' : 'Copy link'}>
+                <IconButton onClick={handleCopyLink} size="small" sx={{ color: linkCopied ? 'success.main' : 'text.secondary' }}>
+                  <LinkIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            )}
             <IconButton onClick={onClose} size="small">
               <CloseIcon />
             </IconButton>
