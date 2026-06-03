@@ -16,6 +16,7 @@ import Alert from '@mui/material/Alert';
 import Tooltip from '@mui/material/Tooltip';
 import StopIcon from '@mui/icons-material/Stop';
 import ReplayIcon from '@mui/icons-material/Replay';
+import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import AgentBadge from './AgentBadge';
@@ -42,6 +43,9 @@ export default function AgentKanbanCard({ run, children = [], isChild = false, o
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [openClawWarning, setOpenClawWarning] = useState(false);
+  const [closeSessionLoading, setCloseSessionLoading] = useState(false);
+  const [closeSessionSent, setCloseSessionSent] = useState(false);
+  const [closeSessionError, setCloseSessionError] = useState<string | null>(null);
 
   const isActive = ACTIVE_STATUSES.has(run.status);
   const isTerminal = TERMINAL_STATUSES.has(run.status);
@@ -61,6 +65,21 @@ export default function AgentKanbanCard({ run, children = [], isChild = false, o
     } finally {
       setActionLoading(false);
       setKillDialogOpen(false);
+    }
+  }
+
+  async function handleCloseSession() {
+    setCloseSessionLoading(true);
+    setCloseSessionError(null);
+    try {
+      const res = await fetch(`/api/agent-runs/${run.id}/close-session`, { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'Close session failed');
+      setCloseSessionSent(true);
+    } catch (err) {
+      setCloseSessionError(err instanceof Error ? err.message : 'Close session failed');
+    } finally {
+      setCloseSessionLoading(false);
     }
   }
 
@@ -151,6 +170,16 @@ export default function AgentKanbanCard({ run, children = [], isChild = false, o
             {actionError}
           </Alert>
         )}
+        {closeSessionError && (
+          <Alert severity="error" sx={{ mt: 1, py: 0 }} onClose={() => setCloseSessionError(null)}>
+            {closeSessionError}
+          </Alert>
+        )}
+        {closeSessionSent && (
+          <Alert severity="success" sx={{ mt: 1, py: 0 }} onClose={() => setCloseSessionSent(false)}>
+            Close signal sent — waiting for Clutch to wrap up.
+          </Alert>
+        )}
         {openClawWarning && (
           <Alert severity="warning" sx={{ mt: 1, py: 0 }} onClose={() => setOpenClawWarning(false)}>
             OpenClaw integration not active — DB record updated but session was not terminated remotely.
@@ -178,6 +207,23 @@ export default function AgentKanbanCard({ run, children = [], isChild = false, o
       {/* Action buttons */}
       {(isActive || isTerminal) && (
         <CardActions sx={{ px: 1.5, pt: 0, pb: 1 }}>
+          {isActive && (
+            <Tooltip title="Signal this session to close itself. Clutch will wrap up and mark the run done.">
+              <span>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  color="success"
+                  startIcon={<CheckCircleOutlineIcon />}
+                  onClick={handleCloseSession}
+                  disabled={closeSessionLoading || closeSessionSent}
+                  sx={{ textTransform: 'none', fontSize: '0.72rem' }}
+                >
+                  {closeSessionSent ? 'Closing…' : closeSessionLoading ? 'Sending…' : 'Close Session'}
+                </Button>
+              </span>
+            </Tooltip>
+          )}
           {isActive && (
             <Tooltip
               title={
