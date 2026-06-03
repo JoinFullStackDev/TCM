@@ -19,6 +19,7 @@ function buildUrl(filters: AgentRunFilters): string {
   if (filters.agent) params.set('agent', filters.agent);
   if (filters.projectTag) params.set('projectTag', filters.projectTag);
   if (filters.includeArchived) params.set('includeArchived', 'true');
+  if (filters.runType) params.set('runType', filters.runType);
   params.set('limit', '100');
   return `/api/agent-runs?${params.toString()}`;
 }
