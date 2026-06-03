@@ -28,6 +28,12 @@ const AGENT_OPTIONS = [
   { value: 'scout', label: 'Scout' },
 ];
 
+const RUN_TYPE_OPTIONS = [
+  { value: '', label: 'All types' },
+  { value: 'subagent', label: 'Subagent' },
+  { value: 'orchestrator', label: 'Orchestrator' },
+];
+
 interface Props {
   filters: AgentRunFilters;
   onChange: (filters: AgentRunFilters) => void;
@@ -70,6 +76,19 @@ export default function AgentFilterBar({ filters, onChange }: Props) {
         sx={{ minWidth: 150 }}
         placeholder="e.g. fullthrottle"
       />
+
+      <FormControl size="small" sx={{ minWidth: 160 }}>
+        <InputLabel>Run type</InputLabel>
+        <Select
+          value={filters.runType ?? ''}
+          label="Run type"
+          onChange={(e) => onChange({ ...filters, runType: (e.target.value || undefined) as typeof filters.runType })}
+        >
+          {RUN_TYPE_OPTIONS.map((o) => (
+            <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>
+          ))}
+        </Select>
+      </FormControl>
 
       <FormControlLabel
         control={

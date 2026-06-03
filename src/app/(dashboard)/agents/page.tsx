@@ -72,11 +72,13 @@ function AgentsPageInner() {
     status: searchParams.get('status') ?? undefined,
     projectTag: searchParams.get('projectTag') ?? undefined,
     includeArchived: searchParams.get('includeArchived') === 'true',
+    runType: (searchParams.get('runType') as AgentRunFilters['runType']) ?? undefined,
   }), [
     searchParams.get('agent'),
     searchParams.get('status'),
     searchParams.get('projectTag'),
     searchParams.get('includeArchived'),
+    searchParams.get('runType'),
   ]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const { runs, total, loading, error, refresh } = useAgentRuns(filters);
@@ -91,6 +93,7 @@ function AgentsPageInner() {
     if (next.status) params.set('status', next.status);
     if (next.projectTag) params.set('projectTag', next.projectTag);
     if (next.includeArchived) params.set('includeArchived', 'true');
+    if (next.runType) params.set('runType', next.runType);
     router.push(`/agents${params.toString() ? `?${params.toString()}` : ''}`);
   }
 

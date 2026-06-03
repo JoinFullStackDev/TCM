@@ -19,6 +19,7 @@ import AgentBadge from './AgentBadge';
 import ElapsedTime from './ElapsedTime';
 import HeartbeatCell from './HeartbeatCell';
 import OutputPanel from './OutputPanel';
+import OrchestratorBadge from './OrchestratorBadge';
 import type { AgentRun } from '@/types/agent-run';
 
 const TERMINAL_STATUSES = new Set(['done', 'failed', 'timed_out', 'killed']);
@@ -91,6 +92,7 @@ export default function AgentRunRow({ run, isChild = false, isOrphan = false, on
       <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, flexWrap: 'wrap' }}>
         <AgentBadge agent={run.agent} />
         <AgentStatusBadge status={run.status} />
+        <OrchestratorBadge runType={run.runType ?? 'subagent'} />
 
         {isOrphan && (
           <Typography variant="caption" color="text.disabled" sx={{ alignSelf: 'center' }}>

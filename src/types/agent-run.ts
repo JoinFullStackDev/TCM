@@ -9,6 +9,8 @@ export type AgentRunStatus =
 
 export type AgentName = 'axel' | 'riff' | 'arc' | 'torque' | 'clutch' | 'scout';
 
+export type AgentRunType = 'subagent' | 'orchestrator';
+
 export interface AgentRun {
   id: string;
   agent: AgentName;
@@ -17,6 +19,7 @@ export interface AgentRun {
   taskDescription: string | null;
   expectedOutcome: string | null;
   status: AgentRunStatus;
+  runType: AgentRunType;
   sessionKey: string;
   spawnedBy: string;
   slackChannel: string | null;
@@ -46,4 +49,5 @@ export interface AgentRunFilters {
   projectTag?: string;
   search?: string;
   includeArchived?: boolean;
+  runType?: AgentRunType | '';
 }
