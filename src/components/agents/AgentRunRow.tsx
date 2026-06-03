@@ -14,6 +14,7 @@ import DialogActions from '@mui/material/DialogActions';
 import Alert from '@mui/material/Alert';
 import StopIcon from '@mui/icons-material/Stop';
 import ReplayIcon from '@mui/icons-material/Replay';
+import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import AgentStatusBadge from './AgentStatusBadge';
 import AgentBadge from './AgentBadge';
 import ElapsedTime from './ElapsedTime';
@@ -37,6 +38,9 @@ export default function AgentRunRow({ run, isChild = false, isOrphan = false, on
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [openClawWarning, setOpenClawWarning] = useState(false);
+  const [closeSessionLoading, setCloseSessionLoading] = useState(false);
+  const [closeSessionSent, setCloseSessionSent] = useState(false);
+  const [closeSessionError, setCloseSessionError] = useState<string | null>(null);
 
   const isActive = ACTIVE_STATUSES.has(run.status);
   const isTerminal = TERMINAL_STATUSES.has(run.status);
@@ -57,6 +61,21 @@ export default function AgentRunRow({ run, isChild = false, isOrphan = false, on
     } finally {
       setActionLoading(false);
       setKillDialogOpen(false);
+    }
+  }
+
+  async function handleCloseSession() {
+    setCloseSessionLoading(true);
+    setCloseSessionError(null);
+    try {
+      const res = await fetch(`/api/agent-runs/${run.id}/close-session`, { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'Close session failed');
+      setCloseSessionSent(true);
+    } catch (err) {
+      setCloseSessionError(err instanceof Error ? err.message : 'Close session failed');
+    } finally {
+      setCloseSessionLoading(false);
     }
   }
 
@@ -163,9 +182,36 @@ export default function AgentRunRow({ run, isChild = false, isOrphan = false, on
           Agent may still be running — OpenClaw integration is not yet active. DB record updated, but the session was not terminated remotely.
         </Alert>
       )}
+      {closeSessionError && (
+        <Alert severity="error" sx={{ mt: 1 }} onClose={() => setCloseSessionError(null)}>
+          {closeSessionError}
+        </Alert>
+      )}
+      {closeSessionSent && (
+        <Alert severity="success" sx={{ mt: 1 }} onClose={() => setCloseSessionSent(false)}>
+          Close signal sent — waiting for Clutch to wrap up.
+        </Alert>
+      )}
 
       {/* Actions */}
       <Box sx={{ display: 'flex', gap: 1, mt: 1.5 }}>
+        {isActive && (
+          <Tooltip title="Signal this session to close itself. Clutch will wrap up and mark the run done.">
+            <span>
+              <Button
+                size="small"
+                variant="outlined"
+                color="success"
+                startIcon={<CheckCircleOutlineIcon />}
+                onClick={handleCloseSession}
+                disabled={closeSessionLoading || closeSessionSent}
+                sx={{ textTransform: 'none' }}
+              >
+                {closeSessionSent ? 'Closing…' : closeSessionLoading ? 'Sending…' : 'Close Session'}
+              </Button>
+            </span>
+          </Tooltip>
+        )}
         {isActive && (
           <Tooltip
             title={
