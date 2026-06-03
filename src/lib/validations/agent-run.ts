@@ -3,6 +3,7 @@ import { z } from 'zod';
 export const TERMINAL_STATUSES = ['done', 'failed', 'timed_out', 'killed'] as const;
 export const VALID_AGENTS = ['axel', 'riff', 'arc', 'torque', 'clutch', 'scout'] as const;
 export const VALID_STATUSES = ['spawned', 'running', 'waiting', 'done', 'failed', 'timed_out', 'killed'] as const;
+export const VALID_RUN_TYPES = ['subagent', 'orchestrator'] as const;
 
 export const OUTPUT_TAIL_MAX_BYTES = 65_536;
 
@@ -20,6 +21,8 @@ export const CreateRunSchema = z.object({
   taskTitle: z.string().max(256).optional().nullable(),
   taskDescription: z.string().optional().nullable(),
   expectedOutcome: z.string().optional().nullable(),
+  // Run type: 'subagent' (default) or 'orchestrator' (Clutch self-registration)
+  runType: z.enum(VALID_RUN_TYPES).optional().default('subagent'),
 });
 
 export const PatchRunSchema = z
@@ -33,5 +36,6 @@ export const PatchRunSchema = z
     message: 'Patch body must not be empty',
   });
 
+export type AgentRunType = typeof VALID_RUN_TYPES[number];
 export type CreateRunInput = z.infer<typeof CreateRunSchema>;
 export type PatchRunInput = z.infer<typeof PatchRunSchema>;

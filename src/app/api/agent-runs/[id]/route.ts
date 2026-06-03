@@ -163,6 +163,7 @@ function toRunResponse(r: any) {
     taskDescription: r.task_description ?? null,
     expectedOutcome: r.expected_outcome ?? null,
     status: r.status,
+    runType: r.run_type ?? 'subagent',
     sessionKey: r.session_key,
     spawnedBy: r.spawned_by,
     slackChannel: r.slack_channel,

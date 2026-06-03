@@ -23,6 +23,7 @@ import AgentStatusBadge from './AgentStatusBadge';
 import ElapsedTime from './ElapsedTime';
 import HeartbeatCell from './HeartbeatCell';
 import OutputPanel from './OutputPanel';
+import OrchestratorBadge from './OrchestratorBadge';
 import type { AgentRun } from '@/types/agent-run';
 
 const TERMINAL_STATUSES = new Set(['done', 'failed', 'timed_out', 'killed']);
@@ -99,6 +100,7 @@ export default function AgentKanbanCard({ run, children = [], isChild = false, o
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap', mb: 0.75 }}>
           <AgentBadge agent={run.agent} />
           <AgentStatusBadge status={run.status} />
+          <OrchestratorBadge runType={run.runType ?? 'subagent'} />
         </Box>
 
         {/* Brief (2-line clamp) */}

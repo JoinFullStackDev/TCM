@@ -31,6 +31,7 @@ export async function POST(request: Request) {
     taskTitle,
     taskDescription,
     expectedOutcome,
+    runType,
   } = parsed.data;
 
   // Verify parentRunId exists if supplied
@@ -65,6 +66,7 @@ export async function POST(request: Request) {
       task_title: taskTitle ?? null,
       task_description: taskDescription ?? null,
       expected_outcome: expectedOutcome ?? null,
+      run_type: runType,
     })
     .select()
     .single();
@@ -94,6 +96,8 @@ export async function GET(request: Request) {
   const agentParam = searchParams.get('agent');
   const projectTag = searchParams.get('projectTag');
   const parentRunId = searchParams.get('parentRunId');
+  const runTypeParam = searchParams.get('runType');
+  const sessionKeyParam = searchParams.get('sessionKey');
   const includeArchived = searchParams.get('includeArchived') === 'true';
   const limit = Math.min(parseInt(searchParams.get('limit') ?? '100', 10), 100);
   const offset = parseInt(searchParams.get('offset') ?? '0', 10);
@@ -123,6 +127,12 @@ export async function GET(request: Request) {
   }
   if (parentRunId) {
     query = query.eq('parent_run_id', parentRunId);
+  }
+  if (runTypeParam) {
+    query = query.eq('run_type', runTypeParam);
+  }
+  if (sessionKeyParam) {
+    query = query.eq('session_key', sessionKeyParam);
   }
 
   const { data: runs, error, count } = await query;
@@ -164,6 +174,7 @@ function toRunResponse(r: any) {
     taskDescription: r.task_description ?? null,
     expectedOutcome: r.expected_outcome ?? null,
     status: r.status,
+    runType: r.run_type ?? 'subagent',
     sessionKey: r.session_key,
     spawnedBy: r.spawned_by,
     slackChannel: r.slack_channel,
