@@ -107,9 +107,9 @@ export default function TestRunCard({
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           {(startDate || dueDate) && (
             <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-              {startDate ? new Date(startDate).toLocaleDateString() : ''}
+              {startDate ? new Date(startDate.split('T')[0] + 'T12:00:00').toLocaleDateString() : ''}
               {startDate && dueDate ? ' – ' : ''}
-              {dueDate ? new Date(dueDate).toLocaleDateString() : ''}
+              {dueDate ? new Date(dueDate.split('T')[0] + 'T12:00:00').toLocaleDateString() : ''}
             </Typography>
           )}
           {assigneeName && (

@@ -19,6 +19,7 @@ export async function GET(request: Request) {
       assignee:assignee_id(full_name, avatar_url),
       test_run_cases(overall_status)
     `)
+    .eq('is_hidden', false)
     .order('created_at', { ascending: false });
 
   if (projectId) query = query.eq('project_id', projectId);
