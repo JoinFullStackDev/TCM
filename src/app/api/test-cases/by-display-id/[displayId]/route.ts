@@ -112,6 +112,18 @@ export async function PATCH(request: Request, context: RouteContext) {
   const { displayId } = await context.params;
   const decodedDisplayId = decodeURIComponent(displayId);
 
+  // Resolve userId for updated_by attribution (OQ-2)
+  let userId: string | null = null;
+  const authHeader = request.headers.get('authorization') ?? '';
+  if (authHeader.startsWith('Bearer ')) {
+    const { data } = await supabase.auth.getUser(authHeader.slice(7));
+    userId = data.user?.id ?? null;
+  }
+  // Headless Clutch-key path: fall back to dedicated agent profile
+  if (!userId && process.env.MCP_AGENT_USER_ID) {
+    userId = process.env.MCP_AGENT_USER_ID;
+  }
+
   // OQ-6: also support ?dry_run=true query param
   const { searchParams } = new URL(request.url);
   const queryDryRun = searchParams.get('dry_run') === 'true';
@@ -230,6 +242,8 @@ export async function PATCH(request: Request, context: RouteContext) {
 
   // Commit path — apply partial update
   const updatePayload: Record<string, unknown> = { ...caseUpdates };
+  // Set updated_by for attribution (OQ-2)
+  if (userId) updatePayload.updated_by = userId;
 
   if (Object.keys(updatePayload).length === 0 && !newSteps) {
     return NextResponse.json({ error: 'Nothing to update' }, { status: 400 });

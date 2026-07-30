@@ -38,6 +38,14 @@ export function resolveAuthConfig(): AuthConfig {
   const userToken = process.env.TCM_USER_TOKEN;
 
   if (clutchKey) {
+    // Startup check: MCP_AGENT_USER_ID is required for headless create/update calls
+    // so that created_by / updated_by are not null (NOT NULL constraint on those columns).
+    if (!process.env.MCP_AGENT_USER_ID) {
+      console.warn(
+        '[tcm-mcp] WARNING: MCP_AGENT_USER_ID is not set — create/update calls will fail with NOT NULL constraint on created_by.\n' +
+        '  Set MCP_AGENT_USER_ID to the UUID of the Clutch Agent service profile row in the profiles table.',
+      );
+    }
     return {
       mode: 'clutch-key',
       baseUrl,

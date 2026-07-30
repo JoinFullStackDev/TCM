@@ -245,6 +245,10 @@ export async function POST(request: Request) {
       const { data } = await supabase.auth.getUser(authHeader.slice(7));
       userId = data.user?.id ?? null;
     }
+    // Headless Clutch-key path: fall back to dedicated agent profile
+    if (!userId && process.env.MCP_AGENT_USER_ID) {
+      userId = process.env.MCP_AGENT_USER_ID;
+    }
   } else {
     // Normal session auth for UI callers
     const auth = await withAuth('write');
