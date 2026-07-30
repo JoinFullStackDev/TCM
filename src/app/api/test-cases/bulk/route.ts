@@ -164,11 +164,13 @@ async function handleBulkHardDelete(request: Request) {
   const toDelete = ids.filter((id: string) => existingMap.get(id)?.deleted_at);
 
   if (toDelete.length > 0) {
-    await supabase
+    const { error: deleteError } = await supabase
       .from('test_cases')
       .delete()
       .in('id', toDelete)
       .not('deleted_at', 'is', null); // guard: only touch trashed records
+
+    if (deleteError) return serverError(deleteError.message);
   }
 
   return NextResponse.json({
