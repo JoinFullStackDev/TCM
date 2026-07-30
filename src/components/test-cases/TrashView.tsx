@@ -346,11 +346,26 @@ export default function TrashView({ suiteId }: TrashViewProps) {
           <Alert severity="error" sx={{ mt: 1 }}>
             This cannot be undone. All trashed test cases and their history will be permanently removed.
           </Alert>
-          {cases.filter((c) => selected.has(c.id)).some((c) => c.automation_status === 'in_cicd') && (
-            <Alert severity="warning" sx={{ mt: 1 }}>
-              Some of these tests are used in automation. Deleting them may break your CI/CD pipeline.
-            </Alert>
-          )}
+          {(() => {
+            const automated = cases.filter((c) => selected.has(c.id) && c.automation_status === 'in_cicd');
+            if (automated.length === 0) return null;
+            return (
+              <Alert severity="warning" sx={{ mt: 1 }}>
+                <Typography variant="body2" fontWeight={600} gutterBottom>
+                  {automated.length} automated test{automated.length !== 1 ? 's' : ''} in this selection may break your CI/CD pipeline if deleted:
+                </Typography>
+                <Box component="ul" sx={{ m: 0, pl: 2 }}>
+                  {automated.map((c) => (
+                    <li key={c.id}>
+                      <Typography variant="caption" fontFamily="monospace">{c.display_id}</Typography>
+                      {' '}
+                      <Typography variant="caption">{c.title}</Typography>
+                    </li>
+                  ))}
+                </Box>
+              </Alert>
+            );
+          })()}
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setDeleteAllOpen(false)} disabled={deleteAllPending}>
