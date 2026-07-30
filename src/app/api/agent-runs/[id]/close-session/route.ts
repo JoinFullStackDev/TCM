@@ -44,7 +44,12 @@ export async function POST(_request: Request, context: RouteContext) {
     );
   }
 
-  // Build the webhook payload
+  // Build the webhook payload.
+  // TRUST BOUNDARY NOTE: session_key, slack_channel, and slack_thread_ts are read
+  // from the DB row — not from user-supplied request input. This is intentional:
+  // caller (operator) only supplies the run ID; all sensitive identifiers come from
+  // the server-side record. OPENCLAW_WAKE_URL must be set to a trusted, internal
+  // endpoint (not user-controllable) to prevent SSRF or session-hijack via forged payloads.
   const payload = {
     runId: run.id,
     sessionKey: run.session_key,
