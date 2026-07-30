@@ -54,13 +54,17 @@ export default function TrashView({ suiteId }: TrashViewProps) {
   const [restoring, setRestoring] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState<Set<string>>(new Set());
 
-  // Initial hard delete confirmation dialog
+  // Individual hard delete confirmation dialog
   const [hardDeleteTarget, setHardDeleteTarget] = useState<DeletedTestCase | null>(null);
   const [hardDeletePending, setHardDeletePending] = useState(false);
 
   // Second-step CI/CD warning dialog (shown when API returns confirmation_required)
   const [cicdConfirmTarget, setCicdConfirmTarget] = useState<{ id: string; warning: string } | null>(null);
   const [cicdConfirmPending, setCicdConfirmPending] = useState(false);
+
+  // Delete All confirmation dialog
+  const [deleteAllOpen, setDeleteAllOpen] = useState(false);
+  const [deleteAllPending, setDeleteAllPending] = useState(false);
 
   const fetchDeleted = useCallback(async () => {
     setLoading(true);
@@ -117,6 +121,28 @@ export default function TrashView({ suiteId }: TrashViewProps) {
       }
     } finally {
       setRestoring(new Set());
+    }
+  };
+
+  const handleDeleteAll = async () => {
+    const ids = cases.map((c) => c.id);
+    if (ids.length === 0) return;
+    setDeleteAllPending(true);
+    try {
+      const res = await fetch('/api/test-cases/bulk?action=hard_delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids }),
+      });
+      if (res.ok) {
+        const result = await res.json();
+        const deletedSet = new Set<string>(result.deleted ?? []);
+        setCases((prev) => prev.filter((c) => !deletedSet.has(c.id)));
+        setSelected(new Set());
+        setDeleteAllOpen(false);
+      }
+    } finally {
+      setDeleteAllPending(false);
     }
   };
 
@@ -201,17 +227,30 @@ export default function TrashView({ suiteId }: TrashViewProps) {
           <Typography variant="h6" fontWeight={600}>Trash</Typography>
           <Typography variant="body2" color="text.secondary">({cases.length} item{cases.length !== 1 ? 's' : ''})</Typography>
         </Box>
-        {selected.size > 0 && (
-          <Button
-            startIcon={<RestoreIcon />}
-            variant="outlined"
-            color="primary"
-            onClick={handleBulkRestore}
-            disabled={restoring.size > 0}
-          >
-            Restore {selected.size} selected
-          </Button>
-        )}
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          {selected.size > 0 && (
+            <Button
+              startIcon={<RestoreIcon />}
+              variant="outlined"
+              color="primary"
+              onClick={handleBulkRestore}
+              disabled={restoring.size > 0}
+            >
+              Restore {selected.size} selected
+            </Button>
+          )}
+          {cases.length > 0 && (
+            <Button
+              startIcon={<DeleteForeverIcon />}
+              variant="outlined"
+              color="error"
+              onClick={() => setDeleteAllOpen(true)}
+              disabled={restoring.size > 0 || deleting.size > 0}
+            >
+              Delete All
+            </Button>
+          )}
+        </Box>
       </Box>
 
       {cases.length === 0 ? (
@@ -293,6 +332,41 @@ export default function TrashView({ suiteId }: TrashViewProps) {
           </Table>
         </TableContainer>
       )}
+
+      {/* Delete All confirmation dialog */}
+      <Dialog open={deleteAllOpen} onClose={() => setDeleteAllOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <DeleteForeverIcon color="error" />
+          Empty Trash
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" gutterBottom>
+            Permanently delete all <strong>{cases.length} item{cases.length !== 1 ? 's' : ''}</strong> in the trash?
+          </Typography>
+          <Alert severity="error" sx={{ mt: 1 }}>
+            This cannot be undone. All trashed test cases and their history will be permanently removed.
+          </Alert>
+          {cases.some((c) => c.automation_status === 'in_cicd') && (
+            <Alert severity="warning" sx={{ mt: 1 }}>
+              Some of these tests are used in automation. Deleting them may break your CI/CD pipeline.
+            </Alert>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteAllOpen(false)} disabled={deleteAllPending}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleDeleteAll}
+            color="error"
+            variant="contained"
+            disabled={deleteAllPending}
+            startIcon={<DeleteForeverIcon />}
+          >
+            {deleteAllPending ? 'Deleting…' : `Delete All ${cases.length}`}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Step 1 — Initial hard delete confirmation dialog */}
       <Dialog open={!!hardDeleteTarget} onClose={() => setHardDeleteTarget(null)} maxWidth="sm" fullWidth>
