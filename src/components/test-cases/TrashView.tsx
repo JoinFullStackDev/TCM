@@ -134,13 +134,24 @@ export default function TrashView({ suiteId }: TrashViewProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ids }),
       });
-      if (res.ok) {
-        const result = await res.json();
-        const deletedSet = new Set<string>(result.deleted ?? []);
-        setCases((prev) => prev.filter((c) => !deletedSet.has(c.id)));
-        setSelected(new Set());
+      const result = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(result?.error ?? `Delete failed (HTTP ${res.status})`);
         setDeleteAllOpen(false);
+        return;
       }
+      const deletedSet = new Set<string>(result.deleted ?? []);
+      if (deletedSet.size === 0) {
+        setError('Delete failed: no items were removed. Try refreshing and selecting again.');
+        setDeleteAllOpen(false);
+        return;
+      }
+      setCases((prev) => prev.filter((c) => !deletedSet.has(c.id)));
+      setSelected(new Set());
+      setDeleteAllOpen(false);
+    } catch (e) {
+      setError((e as Error).message ?? 'Unexpected error during delete');
+      setDeleteAllOpen(false);
     } finally {
       setDeleteAllPending(false);
     }
