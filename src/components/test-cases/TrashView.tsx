@@ -124,8 +124,8 @@ export default function TrashView({ suiteId }: TrashViewProps) {
     }
   };
 
-  const handleDeleteAll = async () => {
-    const ids = cases.map((c) => c.id);
+  const handleBulkHardDelete = async () => {
+    const ids = Array.from(selected);
     if (ids.length === 0) return;
     setDeleteAllPending(true);
     try {
@@ -239,7 +239,7 @@ export default function TrashView({ suiteId }: TrashViewProps) {
               Restore {selected.size} selected
             </Button>
           )}
-          {cases.length > 0 && (
+          {selected.size > 0 && (
             <Button
               startIcon={<DeleteForeverIcon />}
               variant="outlined"
@@ -247,7 +247,7 @@ export default function TrashView({ suiteId }: TrashViewProps) {
               onClick={() => setDeleteAllOpen(true)}
               disabled={restoring.size > 0 || deleting.size > 0}
             >
-              Delete All
+              Delete {selected.size} selected
             </Button>
           )}
         </Box>
@@ -341,12 +341,12 @@ export default function TrashView({ suiteId }: TrashViewProps) {
         </DialogTitle>
         <DialogContent>
           <Typography variant="body2" gutterBottom>
-            Permanently delete all <strong>{cases.length} item{cases.length !== 1 ? 's' : ''}</strong> in the trash?
+            Permanently delete <strong>{Array.from(selected).length} selected item{Array.from(selected).length !== 1 ? 's' : ''}</strong>?
           </Typography>
           <Alert severity="error" sx={{ mt: 1 }}>
             This cannot be undone. All trashed test cases and their history will be permanently removed.
           </Alert>
-          {cases.some((c) => c.automation_status === 'in_cicd') && (
+          {cases.filter((c) => selected.has(c.id)).some((c) => c.automation_status === 'in_cicd') && (
             <Alert severity="warning" sx={{ mt: 1 }}>
               Some of these tests are used in automation. Deleting them may break your CI/CD pipeline.
             </Alert>
@@ -357,13 +357,13 @@ export default function TrashView({ suiteId }: TrashViewProps) {
             Cancel
           </Button>
           <Button
-            onClick={handleDeleteAll}
+            onClick={handleBulkHardDelete}
             color="error"
             variant="contained"
             disabled={deleteAllPending}
             startIcon={<DeleteForeverIcon />}
           >
-            {deleteAllPending ? 'Deleting…' : `Delete All ${cases.length}`}
+            {deleteAllPending ? 'Deleting…' : `Delete ${Array.from(selected).length} selected`}
           </Button>
         </DialogActions>
       </Dialog>
