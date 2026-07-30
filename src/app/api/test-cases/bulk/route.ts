@@ -58,8 +58,9 @@ export async function POST(request: Request) {
 
   if (action === 'delete') return handleBulkDelete(request);
   if (action === 'restore') return handleBulkRestore(request);
+  if (action === 'hard_delete') return handleBulkHardDelete(request);
 
-  return NextResponse.json({ error: 'Unknown bulk action. Use ?action=delete or ?action=restore' }, { status: 400 });
+  return NextResponse.json({ error: 'Unknown bulk action. Use ?action=delete, ?action=restore, or ?action=hard_delete' }, { status: 400 });
 }
 
 async function handleBulkDelete(request: Request) {
@@ -126,6 +127,53 @@ async function handleBulkDelete(request: Request) {
   return NextResponse.json({
     deleted: toDelete,
     skipped: alreadyDeleted,
+    not_found: notFound,
+  });
+}
+
+/**
+ * Permanently deletes all supplied IDs from the trash (hard delete).
+ * IDs must already be soft-deleted (deleted_at IS NOT NULL).
+ * Automated (in_cicd) cases are included — caller is responsible for showing
+ * the appropriate confirmation UI before invoking this action.
+ *
+ * Response: { deleted: [], skipped: [], not_found: [] }
+ *   skipped = IDs that were NOT in the trash (still active — not touched)
+ *   not_found = IDs that don't exist at all
+ */
+async function handleBulkHardDelete(request: Request) {
+  const auth = await withAuth('soft_delete');
+  if (!auth.ok) return auth.response;
+  const { supabase } = auth.ctx;
+
+  const body = await request.json();
+  const parsed = bulkIdsSchema.safeParse(body);
+  if (!parsed.success) return validationError(parsed.error.flatten());
+
+  const { ids } = parsed.data;
+
+  // Fetch all matching records regardless of deleted_at (UNFILTERED_SCOPE)
+  const { data: existing } = await supabase
+    .from('test_cases')
+    .select('id, deleted_at')
+    .in('id', ids);
+
+  const existingMap = new Map((existing ?? []).map((r: { id: string; deleted_at: string | null }) => [r.id, r]));
+  const notFound = ids.filter((id: string) => !existingMap.has(id));
+  const notInTrash = ids.filter((id: string) => existingMap.has(id) && !existingMap.get(id)?.deleted_at);
+  const toDelete = ids.filter((id: string) => existingMap.get(id)?.deleted_at);
+
+  if (toDelete.length > 0) {
+    await supabase
+      .from('test_cases')
+      .delete()
+      .in('id', toDelete)
+      .not('deleted_at', 'is', null); // guard: only touch trashed records
+  }
+
+  return NextResponse.json({
+    deleted: toDelete,
+    skipped: notInTrash,
     not_found: notFound,
   });
 }
