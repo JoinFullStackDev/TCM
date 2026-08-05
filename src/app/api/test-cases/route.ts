@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { withAuth, withAgentAuth, validationError, serverError } from '@/lib/api/helpers';
+import { withAuth, withAgentAuth, validationError, serverError, resolveAgentWriterId } from '@/lib/api/helpers';
 import { createTestCaseSchema } from '@/lib/validations/test-case';
 import { stepSchema } from '@/lib/validations/test-step';
 import { TestCaseRepository } from '@/lib/db/test-case-repository';
@@ -257,16 +257,8 @@ export async function POST(request: Request) {
     const agentAuth = await withAgentAuth();
     if (!agentAuth.ok) return agentAuth.response;
     supabase = agentAuth.supabase;
-    // Try to resolve user from Bearer token for attribution (OQ-2)
-    const authHeader = request.headers.get('authorization') ?? '';
-    if (authHeader.startsWith('Bearer ')) {
-      const { data } = await supabase.auth.getUser(authHeader.slice(7));
-      userId = data.user?.id ?? null;
-    }
-    // Headless Clutch-key path: fall back to dedicated agent profile
-    if (!userId && process.env.MCP_AGENT_USER_ID) {
-      userId = process.env.MCP_AGENT_USER_ID;
-    }
+    // Attribution (OQ-2): Bearer user -> MCP-forwarded X-Agent-User-Id -> server default.
+    userId = await resolveAgentWriterId(request, supabase);
   } else {
     // Normal session auth for UI callers
     const auth = await withAuth('write');
