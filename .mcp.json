@@ -2,12 +2,8 @@
   "mcpServers": {
     "tcm": {
       "command": "npx",
-      "args": ["--yes", "github:JoinFullStackDev/tcm-mcp#v1.0.0", "--stdio"],
-      "env": {
-        "TCM_BASE_URL": "https://tcm-ochre.vercel.app",
-        "TCM_USER_TOKEN": "${TCM_USER_TOKEN}"
-      },
-      "_note": "tcm-mcp now lives in its own repo (github.com/JoinFullStackDev/tcm-mcp) — installs in ~10s / ~50MB vs the old ~1.6GB monorepo clone. It is a PRIVATE repo, so the install host needs git read access (gh auth for devs; a git token for headless agents). Export TCM_USER_TOKEN (Supabase JWT; ~1h) before launching, or set CLUTCH_API_KEY (+MCP_AGENT_USER_ID) for headless. See the tcm-mcp repo README."
+      "args": ["--yes", "github:JoinFullStackDev/tcm-mcp#v1.1.0", "--stdio"],
+      "_note": "tcm-mcp v1.1.0 auto-refreshes its Supabase token and defaults TCM_BASE_URL to production, so no env vars are needed here — the server keeps itself authenticated from ~/.tcm-mcp/session.json. One-time setup: run `npx --yes github:JoinFullStackDev/tcm-mcp#v1.1.0 login` (opens a browser once; auto-installs Playwright + Chromium into ~/.tcm-mcp). PRIVATE repo → the install host needs git read access (gh auth for devs; a git token for headless agents). Headless agents: set CLUTCH_API_KEY (+MCP_AGENT_USER_ID) instead of logging in. See the tcm-mcp repo README."
     },
     "playwright": {
       "command": "npx",
