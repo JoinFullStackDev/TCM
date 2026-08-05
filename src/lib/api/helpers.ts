@@ -220,3 +220,32 @@ export async function withAgentAuth(): Promise<
   const supabase = await createServiceClient();
   return { ok: true, supabase };
 }
+
+
+/**
+ * Resolve the writer identity for agent-authenticated writes (created_by / updated_by).
+ *
+ * Precedence:
+ *   1. Bearer JWT       -> the real Supabase user (interactive / attributed agent).
+ *   2. X-Agent-User-Id  -> the agent id forwarded by the MCP, honored ONLY alongside a
+ *      valid X-Clutch-Key (already validated by withAgentAuth) so it can't be spoofed on
+ *      other auth paths.
+ *   3. MCP_AGENT_USER_ID -> the server-side default agent profile (back-compat).
+ *
+ * Returns null if none resolve (the caller then surfaces the NOT NULL constraint error).
+ */
+export async function resolveAgentWriterId(
+  request: Request,
+  supabase: SupabaseClient,
+): Promise<string | null> {
+  const authHeader = request.headers.get('authorization') ?? '';
+  if (authHeader.startsWith('Bearer ')) {
+    const { data } = await supabase.auth.getUser(authHeader.slice(7));
+    if (data.user?.id) return data.user.id;
+  }
+  if (request.headers.get('x-clutch-key')) {
+    const forwarded = request.headers.get('x-agent-user-id')?.trim();
+    if (forwarded) return forwarded;
+  }
+  return process.env.MCP_AGENT_USER_ID ?? null;
+}

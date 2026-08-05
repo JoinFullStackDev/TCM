@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { withAgentAuth, notFound, serverError, validationError } from '@/lib/api/helpers';
+import { withAgentAuth, notFound, serverError, validationError, resolveAgentWriterId } from '@/lib/api/helpers';
 import { updateTestCaseSchema } from '@/lib/validations/test-case';
 import { stepSchema } from '@/lib/validations/test-step';
 import { z } from 'zod';
@@ -112,17 +112,8 @@ export async function PATCH(request: Request, context: RouteContext) {
   const { displayId } = await context.params;
   const decodedDisplayId = decodeURIComponent(displayId);
 
-  // Resolve userId for updated_by attribution (OQ-2)
-  let userId: string | null = null;
-  const authHeader = request.headers.get('authorization') ?? '';
-  if (authHeader.startsWith('Bearer ')) {
-    const { data } = await supabase.auth.getUser(authHeader.slice(7));
-    userId = data.user?.id ?? null;
-  }
-  // Headless Clutch-key path: fall back to dedicated agent profile
-  if (!userId && process.env.MCP_AGENT_USER_ID) {
-    userId = process.env.MCP_AGENT_USER_ID;
-  }
+  // Resolve updated_by attribution (OQ-2): Bearer user -> MCP X-Agent-User-Id -> default.
+  const userId: string | null = await resolveAgentWriterId(request, supabase);
 
   // OQ-6: also support ?dry_run=true query param
   const { searchParams } = new URL(request.url);
