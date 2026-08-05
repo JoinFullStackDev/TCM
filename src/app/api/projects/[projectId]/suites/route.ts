@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { withAuth, validationError, serverError, conflict } from '@/lib/api/helpers';
+import { withAuth, withAgentAuth, validationError, serverError, conflict } from '@/lib/api/helpers';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { createSuiteSchema } from '@/lib/validations/suite';
 
 interface RouteContext {
@@ -7,9 +8,22 @@ interface RouteContext {
 }
 
 export async function GET(request: Request, context: RouteContext) {
-  const auth = await withAuth('read');
-  if (!auth.ok) return auth.response;
-  const { supabase } = auth.ctx;
+  // Dual auth: agents (X-Clutch-Key or Bearer JWT) authenticate via withAgentAuth so the MCP
+  // search_suite tool can reach this route; browser/session callers keep withAuth('read').
+  const isAgentCall =
+    request.headers.get('x-clutch-key') !== null ||
+    (request.headers.get('authorization') ?? '').startsWith('Bearer ');
+
+  let supabase: SupabaseClient;
+  if (isAgentCall) {
+    const agentAuth = await withAgentAuth();
+    if (!agentAuth.ok) return agentAuth.response;
+    supabase = agentAuth.supabase;
+  } else {
+    const auth = await withAuth('read');
+    if (!auth.ok) return auth.response;
+    supabase = auth.ctx.supabase;
+  }
   const { projectId } = await context.params;
 
   // E1 — MCP prerequisite: ?search= filter (case-insensitive match on name or prefix)
