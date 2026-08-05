@@ -30,7 +30,12 @@ export class TcmClient {
 
   /**
    * Make a request to TCM REST API.
-   * Throws on network failure; returns parsed JSON on success or HTTP error.
+   *
+   * Never throws: a network-level failure (DNS, connection refused, TLS, timeout) is
+   * returned as { ok: false, status: 0 } so callers surface a structured tool error
+   * instead of a raw MCP -32603. Redirects are NOT followed — TCM's auth middleware
+   * 307-redirects unauthenticated requests to /login; following it would yield a 200
+   * HTML page and mask the real failure, so the 3xx is surfaced as a non-ok status.
    */
   async request<T = unknown>(
     path: string,
@@ -42,11 +47,18 @@ export class TcmClient {
     if (correlationId) headers['X-MCP-Correlation-Id'] = correlationId;
     if (intent) headers['X-MCP-Intent'] = intent;
 
-    const res = await fetch(`${this.baseUrl}${path}`, {
-      method,
-      headers,
-      body: body !== undefined ? JSON.stringify(body) : undefined,
-    });
+    let res: Response;
+    try {
+      res = await fetch(`${this.baseUrl}${path}`, {
+        method,
+        headers,
+        body: body !== undefined ? JSON.stringify(body) : undefined,
+        redirect: 'manual',
+      });
+    } catch {
+      // Network-level failure — surface as a non-ok result rather than throwing.
+      return { ok: false, status: 0, data: null as unknown as T };
+    }
 
     let data: T;
     try {

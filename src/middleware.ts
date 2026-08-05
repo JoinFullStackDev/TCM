@@ -11,6 +11,15 @@ const PUBLIC_PATHS = [
   '/api/feedback/projects',    // public project list for form dropdown
   '/api/agent-runs',           // dual-auth: Bearer token (Clutch) or session cookie
   '/api/cron/',                // internal cron endpoints
+  // Agent-reachable API routes for the MCP (Test Case CRUD). These handlers authenticate
+  // header-based agent auth (X-Clutch-Key / Bearer JWT) themselves via withAgentAuth.
+  // Middleware only inspects the cookie session, so without exempting them it would
+  // 307-redirect agent (no-cookie) requests to /login before the handler runs. Browser
+  // users are unaffected (they carry a cookie); unauthenticated requests get a 401/403
+  // from the handler instead of a redirect. The /api/projects/*/suites route is matched
+  // separately below -- its dynamic segment can't be a startsWith prefix without also
+  // exempting every other /api/projects route.
+  '/api/test-cases',           // list + create, and .../by-display-id get + update
 ];
 
 export async function middleware(request: NextRequest) {
@@ -48,7 +57,9 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const isPublicPath =
     PUBLIC_PATHS.some((p) => pathname.startsWith(p)) ||
-    (pathname === '/api/feedback' && request.method === 'POST');
+    (pathname === '/api/feedback' && request.method === 'POST') ||
+    // MCP search_suite -> GET /api/projects/{id}/suites. Handler does agent auth (withAgentAuth).
+    /^\/api\/projects\/[^/]+\/suites$/.test(pathname);
 
   if (!user && !isPublicPath) {
     const url = request.nextUrl.clone();

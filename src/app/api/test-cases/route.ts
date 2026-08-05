@@ -4,15 +4,32 @@ import { createTestCaseSchema } from '@/lib/validations/test-case';
 import { stepSchema } from '@/lib/validations/test-step';
 import { TestCaseRepository } from '@/lib/db/test-case-repository';
 import { z } from 'zod';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 // E2 list filter extensions
 const LIST_LIMIT_DEFAULT = 50;
 const LIST_LIMIT_MAX = 200;
 
 export async function GET(request: Request) {
-  const auth = await withAuth('read');
-  if (!auth.ok) return auth.response;
-  const { supabase, role } = auth.ctx;
+  // Dual auth: agents (X-Clutch-Key or Bearer JWT) authenticate via withAgentAuth so the MCP
+  // list_test_cases tool can reach this route; browser/session callers keep withAuth('read')
+  // (RLS-scoped client + role checks). Mirrors the create (POST) handler below.
+  const isAgentCall =
+    request.headers.get('x-clutch-key') !== null ||
+    (request.headers.get('authorization') ?? '').startsWith('Bearer ');
+
+  let supabase: SupabaseClient;
+  let role: string | null = null;
+  if (isAgentCall) {
+    const agentAuth = await withAgentAuth();
+    if (!agentAuth.ok) return agentAuth.response;
+    supabase = agentAuth.supabase;
+  } else {
+    const auth = await withAuth('read');
+    if (!auth.ok) return auth.response;
+    supabase = auth.ctx.supabase;
+    role = auth.ctx.role;
+  }
 
   const { searchParams } = new URL(request.url);
   const suiteId = searchParams.get('suite_id');
@@ -24,9 +41,10 @@ export async function GET(request: Request) {
 
   const repo = new TestCaseRepository(supabase);
 
-  // Trash view — Editor+ only (403 for Viewers)
+  // Trash view — Editor+ only (403 for Viewers). Agents cannot reach trash via this route
+  // (MCP reads exclude soft-deleted cases); role is only populated on the session path.
   if (deleted) {
-    if (role === 'viewer') {
+    if (isAgentCall || role === 'viewer') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
     const filters: Record<string, unknown> = {};
