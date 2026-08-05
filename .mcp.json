@@ -2,12 +2,12 @@
   "mcpServers": {
     "tcm": {
       "command": "npx",
-      "args": ["--yes", "github:SmailBestybay/tcm-mcp#v1.0.0", "--stdio"],
+      "args": ["--yes", "github:JoinFullStackDev/tcm-mcp#v1.0.0", "--stdio"],
       "env": {
         "TCM_BASE_URL": "https://tcm-ochre.vercel.app",
         "TCM_USER_TOKEN": "${TCM_USER_TOKEN}"
       },
-      "_note": "tcm-mcp now lives in its own repo (github.com/SmailBestybay/tcm-mcp) — installs in ~11s / ~50MB vs the old ~1.6GB monorepo clone. TEST: this points at a PERSONAL PRIVATE repo; move to an org repo before teammates rely on it (a private repo requires git read access on the install host). Export TCM_USER_TOKEN (Supabase JWT; ~1h) before launching, or set CLUTCH_API_KEY (+MCP_AGENT_USER_ID) for headless. See the tcm-mcp repo README."
+      "_note": "tcm-mcp now lives in its own repo (github.com/JoinFullStackDev/tcm-mcp) — installs in ~10s / ~50MB vs the old ~1.6GB monorepo clone. It is a PRIVATE repo, so the install host needs git read access (gh auth for devs; a git token for headless agents). Export TCM_USER_TOKEN (Supabase JWT; ~1h) before launching, or set CLUTCH_API_KEY (+MCP_AGENT_USER_ID) for headless. See the tcm-mcp repo README."
     },
     "playwright": {
       "command": "npx",
