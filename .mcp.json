@@ -2,12 +2,12 @@
   "mcpServers": {
     "tcm": {
       "command": "npx",
-      "args": ["--yes", "github:JoinFullStackDev/TCM#v1.0.1", "--stdio"],
+      "args": ["--yes", "github:SmailBestybay/tcm-mcp#v1.0.0", "--stdio"],
       "env": {
         "TCM_BASE_URL": "https://tcm-ochre.vercel.app",
         "TCM_USER_TOKEN": "${TCM_USER_TOKEN}"
       },
-      "_note": "Pinned to tag v1.0.1 (first runnable tag: includes the root-bin wrapper and the agent-auth reachability fix). Export TCM_USER_TOKEN (a Supabase session JWT; expires ~1h) before launching. For headless Torque use: set CLUTCH_API_KEY instead (and MCP_AGENT_USER_ID for write attribution). See packages/tcm-mcp/README.md."
+      "_note": "tcm-mcp now lives in its own repo (github.com/SmailBestybay/tcm-mcp) — installs in ~11s / ~50MB vs the old ~1.6GB monorepo clone. TEST: this points at a PERSONAL PRIVATE repo; move to an org repo before teammates rely on it (a private repo requires git read access on the install host). Export TCM_USER_TOKEN (Supabase JWT; ~1h) before launching, or set CLUTCH_API_KEY (+MCP_AGENT_USER_ID) for headless. See the tcm-mcp repo README."
     },
     "playwright": {
       "command": "npx",
