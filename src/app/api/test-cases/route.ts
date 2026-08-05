@@ -1,7 +1,13 @@
 import { NextResponse } from 'next/server';
-import { withAuth, validationError, serverError } from '@/lib/api/helpers';
+import { withAuth, withAgentAuth, validationError, serverError } from '@/lib/api/helpers';
 import { createTestCaseSchema } from '@/lib/validations/test-case';
+import { stepSchema } from '@/lib/validations/test-step';
 import { TestCaseRepository } from '@/lib/db/test-case-repository';
+import { z } from 'zod';
+
+// E2 list filter extensions
+const LIST_LIMIT_DEFAULT = 50;
+const LIST_LIMIT_MAX = 200;
 
 export async function GET(request: Request) {
   const auth = await withAuth('read');
@@ -55,16 +61,28 @@ export async function GET(request: Request) {
     }
   }
 
+  // E2 — MCP prerequisite: project_id filter + limit clamp
+  const projectId = searchParams.get('project_id')?.trim();
+  const limitParam = searchParams.get('limit');
+  const rawLimit = limitParam ? parseInt(limitParam, 10) : LIST_LIMIT_DEFAULT;
+  const clampedLimit = Math.min(isNaN(rawLimit) || rawLimit < 1 ? LIST_LIMIT_DEFAULT : rawLimit, LIST_LIMIT_MAX);
+  const limitClamped = limitParam && rawLimit > LIST_LIMIT_MAX;
+
   // Text search applied in-memory (the supabase client query is constructed in findAll)
   // For search we need to re-query with ilike — fall through to direct query below
-  if (search) {
-    // Re-query with search filter directly (repository doesn't support ilike yet)
-    const { data, error } = await supabase
+  if (search || projectId) {
+    // Re-query with search/project_id filter directly
+    let q = supabase
       .from('test_cases')
-      .select('*, suite:suites(project_id)')
+      .select('*, suite:suites!inner(project_id)')
       .is('deleted_at', null)
-      .or(`display_id.ilike.%${search}%,title.ilike.%${search}%`)
-      .order('position', { ascending: true });
+      .order('position', { ascending: true })
+      .limit(clampedLimit);
+    if (search) q = q.or(`display_id.ilike.%${search}%,title.ilike.%${search}%`);
+    if (suiteId) q = q.eq('suite_id', suiteId);
+    // project_id filter via inner join on suites
+    if (projectId) q = q.eq('suites.project_id', projectId);
+    const { data, error } = await q;
     if (error) return serverError(error.message);
     testCases = data ?? [];
   }
@@ -165,27 +183,150 @@ export async function GET(request: Request) {
     }
   }
 
+  // Apply limit if no search/projectId path was taken
+  if (!search && !projectId && clampedLimit < testCases.length) {
+    testCases = testCases.slice(0, clampedLimit);
+  }
+
+  const total = testCases.length;
+  const has_more = limitClamped;
+
+  // If lean projection requested (MCP path), return minimal fields
+  const lean = searchParams.get('fields') === 'lean';
+  if (lean) {
+    return NextResponse.json({
+      items: testCases.map((tc) => ({
+        display_id: tc.display_id,
+        title: tc.title,
+        automation_status: tc.automation_status,
+        priority: tc.priority,
+      })),
+      total,
+      has_more,
+    });
+  }
+
   return NextResponse.json(testCases);
 }
 
-export async function POST(request: Request) {
-  const auth = await withAuth('write');
-  if (!auth.ok) return auth.response;
-  const { supabase, user } = auth.ctx;
+// E4 body schema: createTestCaseSchema extended with optional steps[] and dry_run
+const createWithStepsSchema = createTestCaseSchema.extend({
+  steps: z
+    .array(
+      stepSchema.omit({ step_number: true }).extend({
+        step_number: z.number().int().min(1).optional(),
+      }),
+    )
+    .optional(),
+  dry_run: z.boolean().optional().default(false),
+});
 
-  const body = await request.json();
-  const parsed = createTestCaseSchema.safeParse(body);
+export async function POST(request: Request) {
+  // Accept both agent auth (X-Clutch-Key / Bearer JWT) and normal session auth.
+  // Try agent auth first so headless agents (Torque via Clutch) can create cases.
+  // E4 extension: accepts optional steps[] for atomic insert + dry_run support (OQ-6 Option B).
+  const rawBody = await request.json();
+
+  // Detect if this is an MCP call (has steps or dry_run field)
+  const isMcpCall = 'steps' in rawBody || 'dry_run' in rawBody;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let supabase: any;
+  let userId: string | null = null;
+
+  if (isMcpCall) {
+    // Agent auth path for MCP callers
+    const agentAuth = await withAgentAuth();
+    if (!agentAuth.ok) return agentAuth.response;
+    supabase = agentAuth.supabase;
+    // Try to resolve user from Bearer token for attribution (OQ-2)
+    const authHeader = request.headers.get('authorization') ?? '';
+    if (authHeader.startsWith('Bearer ')) {
+      const { data } = await supabase.auth.getUser(authHeader.slice(7));
+      userId = data.user?.id ?? null;
+    }
+    // Headless Clutch-key path: fall back to dedicated agent profile
+    if (!userId && process.env.MCP_AGENT_USER_ID) {
+      userId = process.env.MCP_AGENT_USER_ID;
+    }
+  } else {
+    // Normal session auth for UI callers
+    const auth = await withAuth('write');
+    if (!auth.ok) return auth.response;
+    supabase = auth.ctx.supabase;
+    userId = auth.ctx.user.id;
+  }
+
+  // Parse with extended schema (supports steps + dry_run) or basic schema
+  const parsed = isMcpCall
+    ? createWithStepsSchema.safeParse(rawBody)
+    : createTestCaseSchema.extend({ steps: z.never().optional(), dry_run: z.never().optional() }).safeParse(rawBody);
+
   if (!parsed.success) return validationError(parsed.error.flatten());
+  const data = parsed.data as z.infer<typeof createWithStepsSchema>;
+
+  // OQ-6: dry_run support — validate + summarize, no write
+  const queryDryRun = new URL(request.url).searchParams.get('dry_run') === 'true';
+  const dryRun = data.dry_run || queryDryRun;
+
+  if (dryRun) {
+    // Log dry-run attempt
+    const correlationId = request.headers.get('x-mcp-correlation-id') ?? null;
+    const actorIdentity = request.headers.get('x-clutch-key') ? 'clutch-key' : 'bearer-jwt';
+    await supabase.from('mcp_tool_calls').insert({
+      correlation_id: correlationId,
+      tool: 'create_test_case',
+      dry_run: true,
+      intent: request.headers.get('x-mcp-intent') ?? 'dry-run-create',
+      actor_identity: actorIdentity,
+      suite_id: data.suite_id,
+      outcome: 'dry_run_returned',
+    }).then(() => {});
+
+    const proposedSteps = data.steps
+      ? data.steps.map((s, i) => ({ ...s, step_number: i + 1 }))
+      : [];
+
+    // Fetch suite prefix for summary (display_id assigned on commit)
+    const { data: suite } = await supabase
+      .from('suites')
+      .select('prefix, name')
+      .eq('id', data.suite_id)
+      .single();
+
+    const summaryLines = [
+      '## Dry-run: create test case',
+      '',
+      `**Suite:** ${suite?.name ?? data.suite_id} (prefix: ${suite?.prefix ?? '?'})`,
+      `**Title:** ${data.title}`,
+      `**Priority:** ${data.priority ?? 'null'}`,
+      `**Automation status:** ${data.automation_status ?? 'not_automated'}`,
+      `**Platform tags:** ${(data.platform_tags ?? []).join(', ') || 'none'}`,
+      '',
+      '_display_id will be assigned on commit_',
+      '',
+      `**Steps (${proposedSteps.length}):**`,
+      ...proposedSteps.map((s) => `  ${s.step_number}. ${s.description}`),
+    ];
+
+    return NextResponse.json({
+      dry_run: true,
+      would_create: { ...data, steps: proposedSteps },
+      summary_markdown: summaryLines.join('\n'),
+    });
+  }
+
+  // --- Commit path ---
 
   // Duplicate-name notice: check if a deleted case with the same title exists
   const repo = new TestCaseRepository(supabase);
-  const deletedMatches = await repo.findDeletedByTitle(parsed.data.title, parsed.data.suite_id);
+  const deletedMatches = await repo.findDeletedByTitle(data.title, data.suite_id);
   const duplicateNotice = deletedMatches.length > 0
-    ? `A deleted test case named "${parsed.data.title}" exists in the trash. You can restore it instead.`
+    ? `A deleted test case named "${data.title}" exists in the trash. You can restore it instead.`
     : null;
 
   const { data: idResult, error: rpcError } = await supabase
-    .rpc('generate_test_case_id', { p_suite_id: parsed.data.suite_id })
+    .rpc('generate_test_case_id', { p_suite_id: data.suite_id })
     .single();
 
   if (rpcError || !idResult) {
@@ -198,7 +339,7 @@ export async function POST(request: Request) {
   const { data: maxPosRow } = await supabase
     .from('test_cases')
     .select('position')
-    .eq('suite_id', parsed.data.suite_id)
+    .eq('suite_id', data.suite_id)
     .is('deleted_at', null)
     .order('position', { ascending: false })
     .limit(1)
@@ -209,28 +350,75 @@ export async function POST(request: Request) {
   const { data: testCase, error } = await supabase
     .from('test_cases')
     .insert({
-      suite_id: parsed.data.suite_id,
+      suite_id: data.suite_id,
       display_id,
       sequence_number,
-      title: parsed.data.title,
-      description: parsed.data.description ?? null,
-      precondition: parsed.data.precondition ?? null,
-      type: parsed.data.type,
-      automation_status: parsed.data.automation_status,
-      platform_tags: parsed.data.platform_tags,
-      priority: parsed.data.priority ?? null,
-      tags: parsed.data.tags,
+      title: data.title,
+      description: data.description ?? null,
+      precondition: data.precondition ?? null,
+      type: data.type,
+      automation_status: data.automation_status,
+      platform_tags: data.platform_tags,
+      priority: data.priority ?? null,
+      tags: data.tags,
       position: nextPosition,
-      created_by: user.id,
-      updated_by: user.id,
+      created_by: userId,
+      updated_by: userId,
     })
     .select()
     .single();
 
   if (error) return serverError(error.message);
 
+  // E4 extension: atomically insert steps if provided
+  let insertedSteps: unknown[] = [];
+  if (data.steps && data.steps.length > 0 && testCase) {
+    const stepRows = data.steps.map((s, i) => ({
+      test_case_id: testCase.id,
+      step_number: i + 1,
+      description: s.description,
+      test_data: s.test_data ?? null,
+      expected_result: s.expected_result ?? null,
+      is_automation_only: s.is_automation_only ?? false,
+      category: s.category ?? null,
+    }));
+
+    const { data: steps, error: stepsErr } = await supabase
+      .from('test_steps')
+      .insert(stepRows)
+      .select()
+      .order('step_number', { ascending: true });
+
+    if (stepsErr) {
+      // Compensate: delete the case if steps insert fails (maintain atomicity)
+      await supabase.from('test_cases').delete().eq('id', testCase.id);
+      return serverError(stepsErr.message);
+    }
+    insertedSteps = steps ?? [];
+  }
+
+  // Log MCP commit call
+  if (isMcpCall) {
+    const correlationId = request.headers.get('x-mcp-correlation-id') ?? null;
+    const actorIdentity = request.headers.get('x-clutch-key') ? 'clutch-key' : 'bearer-jwt';
+    await supabase.from('mcp_tool_calls').insert({
+      correlation_id: correlationId,
+      tool: 'create_test_case',
+      dry_run: false,
+      intent: request.headers.get('x-mcp-intent') ?? 'commit-create',
+      actor_identity: actorIdentity,
+      resolved_display_id: display_id,
+      suite_id: data.suite_id,
+      outcome: 'success',
+    }).then(() => {});
+  }
+
   return NextResponse.json(
-    { ...testCase, ...(duplicateNotice ? { notice: duplicateNotice } : {}) },
+    {
+      ...testCase,
+      steps: insertedSteps,
+      ...(duplicateNotice ? { notice: duplicateNotice } : {}),
+    },
     { status: 201 },
   );
 }

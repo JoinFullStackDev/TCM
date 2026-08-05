@@ -1,5 +1,14 @@
 {
   "mcpServers": {
+    "tcm": {
+      "command": "npx",
+      "args": ["--yes", "github:JoinFullStackDev/TCM#feat/mcp-e1-implementation", "--stdio"],
+      "env": {
+        "TCM_BASE_URL": "https://tcm-ochre.vercel.app",
+        "TCM_USER_TOKEN": "${TCM_USER_TOKEN}"
+      },
+      "_note": "Pin to a tag once feat/mcp-e1-implementation is tagged (e.g. github:JoinFullStackDev/TCM#v1.0.0). For headless Torque use: set CLUTCH_API_KEY instead of TCM_USER_TOKEN."
+    },
     "playwright": {
       "command": "npx",
       "args": [

@@ -6,17 +6,27 @@ interface RouteContext {
   params: Promise<{ projectId: string }>;
 }
 
-export async function GET(_request: Request, context: RouteContext) {
+export async function GET(request: Request, context: RouteContext) {
   const auth = await withAuth('read');
   if (!auth.ok) return auth.response;
   const { supabase } = auth.ctx;
   const { projectId } = await context.params;
 
-  const { data: suites, error } = await supabase
+  // E1 — MCP prerequisite: ?search= filter (case-insensitive match on name or prefix)
+  const { searchParams } = new URL(request.url);
+  const search = searchParams.get('search')?.trim();
+
+  let query = supabase
     .from('suites')
     .select('*')
     .eq('project_id', projectId)
     .order('position', { ascending: true });
+
+  if (search) {
+    query = query.or(`name.ilike.%${search}%,prefix.ilike.%${search}%`);
+  }
+
+  const { data: suites, error } = await query;
 
   if (error) return serverError(error.message);
 
