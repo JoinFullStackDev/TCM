@@ -2,12 +2,12 @@
   "mcpServers": {
     "tcm": {
       "command": "npx",
-      "args": ["--yes", "github:JoinFullStackDev/TCM#v1.0.0", "--stdio"],
+      "args": ["--yes", "github:JoinFullStackDev/TCM#v1.0.1", "--stdio"],
       "env": {
         "TCM_BASE_URL": "https://tcm-ochre.vercel.app",
         "TCM_USER_TOKEN": "${TCM_USER_TOKEN}"
       },
-      "_note": "Pinned to tag v1.0.0. Bump this ref to roll out a new MCP release. For headless Torque use: set CLUTCH_API_KEY instead of TCM_USER_TOKEN (and MCP_AGENT_USER_ID for write attribution). See packages/tcm-mcp/README.md."
+      "_note": "Pinned to tag v1.0.1 (first runnable tag: includes the root-bin wrapper and the agent-auth reachability fix). Export TCM_USER_TOKEN (a Supabase session JWT; expires ~1h) before launching. For headless Torque use: set CLUTCH_API_KEY instead (and MCP_AGENT_USER_ID for write attribution). See packages/tcm-mcp/README.md."
     },
     "playwright": {
       "command": "npx",
