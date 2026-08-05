@@ -142,6 +142,11 @@ async function handleBulkDelete(request: Request) {
  *   not_found = IDs that don't exist at all
  */
 async function handleBulkHardDelete(request: Request) {
+  // AUTH NOTE: 'soft_delete' role is intentional here — hard delete is NOT a separate
+  // RBAC permission because it is already gated to trashed-only records by the
+  // `.not('deleted_at', 'is', null)` guard below. Only records that have already been
+  // soft-deleted by an authorized Editor+ user can be permanently removed. This avoids
+  // privilege escalation while keeping the permission model simple.
   const auth = await withAuth('soft_delete');
   if (!auth.ok) return auth.response;
   const { supabase } = auth.ctx;
