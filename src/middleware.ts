@@ -58,6 +58,9 @@ export async function middleware(request: NextRequest) {
   const isPublicPath =
     PUBLIC_PATHS.some((p) => pathname.startsWith(p)) ||
     (pathname === '/api/feedback' && request.method === 'POST') ||
+    // MCP list_projects -> GET /api/projects (list only). Handler does agent auth
+    // (withAgentAuth). Exact match so the other /api/projects/* subroutes stay cookie-gated.
+    pathname === '/api/projects' ||
     // MCP search_suite -> GET /api/projects/{id}/suites. Handler does agent auth (withAgentAuth).
     /^\/api\/projects\/[^/]+\/suites$/.test(pathname);
 
