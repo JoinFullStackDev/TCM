@@ -8,7 +8,7 @@ export const createSuiteSchema = z.object({
     .min(1, 'Prefix is required')
     .max(10, 'Prefix must be 10 characters or less')
     .transform((v) => v.toUpperCase())
-    .refine((v) => /^[A-Z0-9]+$/.test(v), 'Prefix must be alphanumeric'),
+    .refine((v) => /^[A-Z0-9-]+$/.test(v), 'Prefix must be alphanumeric and may include hyphens'),
   description: z.string().trim().max(1000).nullable().optional(),
   tags: z.array(z.string().trim().max(50)).optional().default([]),
   group: z.string().trim().max(50).nullable().optional(),
@@ -22,7 +22,7 @@ export const updateSuiteSchema = z.object({
     .min(1)
     .max(10)
     .transform((v) => v.toUpperCase())
-    .refine((v) => /^[A-Z0-9]+$/.test(v), 'Prefix must be alphanumeric')
+    .refine((v) => /^[A-Z0-9-]+$/.test(v), 'Prefix must be alphanumeric and may include hyphens')
     .optional(),
   description: z.string().trim().max(1000).nullable().optional(),
   tags: z.array(z.string().trim().max(50)).optional(),
