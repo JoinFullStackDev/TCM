@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { withAuth, withAgentAuth, validationError, serverError, conflict } from '@/lib/api/helpers';
+import { withAuth, withAgentAuth, resolveAgentWriterId, validationError, serverError, conflict } from '@/lib/api/helpers';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createSuiteSchema } from '@/lib/validations/suite';
 
@@ -58,9 +58,26 @@ export async function GET(request: Request, context: RouteContext) {
 }
 
 export async function POST(request: Request, context: RouteContext) {
-  const auth = await withAuth('write');
-  if (!auth.ok) return auth.response;
-  const { supabase, user } = auth.ctx;
+  // Dual auth: agents (X-Clutch-Key or Bearer JWT) use withAgentAuth; browser callers use withAuth('write').
+  const isAgentCall =
+    request.headers.get('x-clutch-key') !== null ||
+    (request.headers.get('authorization') ?? '').startsWith('Bearer ');
+
+  let supabase: SupabaseClient;
+  let userId: string;
+  if (isAgentCall) {
+    const agentAuth = await withAgentAuth();
+    if (!agentAuth.ok) return agentAuth.response;
+    supabase = agentAuth.supabase;
+    const resolved = await resolveAgentWriterId(request, supabase);
+    if (!resolved) return NextResponse.json({ error: 'Could not resolve agent user identity' }, { status: 401 });
+    userId = resolved;
+  } else {
+    const auth = await withAuth('write');
+    if (!auth.ok) return auth.response;
+    supabase = auth.ctx.supabase;
+    userId = auth.ctx.user.id;
+  }
   const { projectId } = await context.params;
 
   const body = await request.json();
@@ -98,7 +115,7 @@ export async function POST(request: Request, context: RouteContext) {
       description: parsed.data.description ?? null,
       color_index: (suiteCount ?? 0) % 5,
       position: (maxPos?.position ?? -1) + 1,
-      created_by: user.id,
+      created_by: userId,
     })
     .select()
     .single();
