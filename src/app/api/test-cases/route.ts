@@ -260,6 +260,9 @@ export async function GET(request: Request) {
         title: tc.title,
         automation_status: tc.automation_status,
         priority: tc.priority,
+        // Included so a ?tags= caller can see WHY each case matched without a second
+        // round-trip. `tags` is NOT NULL DEFAULT '{}', so this is always an array.
+        tags: tc.tags,
       })),
       total,
       has_more,
