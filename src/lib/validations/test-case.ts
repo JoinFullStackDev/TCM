@@ -23,6 +23,9 @@ const categoryEnum = z.enum(['smoke', 'regression', 'integration', 'e2e', 'unit'
  */
 const tagsSchema = z
   .array(z.string().trim().max(50))
+  // .max(50) caps element length; this caps how many. Without it a case can carry
+  // thousands of tags, which then bloats every tag-facet render and every filter URL.
+  .max(50, 'At most 50 tags per test case')
   .transform((tags) =>
     [...new Set(tags.map((t) => t.toLowerCase()).filter((t) => t.length > 0))].sort(),
   );

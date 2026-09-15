@@ -9,6 +9,20 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 // E2 list filter extensions
 const LIST_LIMIT_DEFAULT = 50;
 const LIST_LIMIT_MAX = 200;
+/** Bounds the upstream PostgREST URL — a caller repeating ?tags= is otherwise unbounded. */
+const MAX_TAG_FILTERS = 50;
+
+/**
+ * Render tags as an explicitly-quoted Postgres array literal.
+ *
+ * postgrest-js's overlaps(column, string[]) builds `ov.{a,b}` by plain .join(','), with no
+ * per-element quoting — so a tag containing `{`, `}`, `"` or `\` either changes meaning or
+ * makes PostgREST fail to parse the literal and surfaces its raw error as a 500. Passing a
+ * pre-quoted literal (the string overload) instead keeps those tags matching themselves.
+ */
+function toPgArrayLiteral(tags: string[]): string {
+  return `{${tags.map((t) => `"${t.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`).join(',')}}`;
+}
 
 export async function GET(request: Request) {
   // Dual auth: agents (X-Clutch-Key or Bearer JWT) authenticate via withAgentAuth so the MCP
@@ -47,7 +61,7 @@ export async function GET(request: Request) {
       .flatMap((t) => t.split(','))
       .map((t) => t.trim().toLowerCase())
       .filter((t) => t.length > 0),
-  )];
+  )].slice(0, MAX_TAG_FILTERS);
 
   const repo = new TestCaseRepository(supabase);
 
@@ -56,6 +70,11 @@ export async function GET(request: Request) {
   if (deleted) {
     if (isAgentCall || role === 'viewer') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+    // findDeleted() has no tag support, and returning the full trash for a tag-filtered
+    // request would read as "all of these carry that tag". Refuse rather than mislead.
+    if (tags.length > 0) {
+      return validationError('Filtering the trash by tags is not supported.');
     }
     const filters: Record<string, unknown> = {};
     if (suiteId) filters.suite_id = suiteId;
@@ -69,6 +88,8 @@ export async function GET(request: Request) {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let testCases: any[] = [];
+  /** Server-side count of all matches, when one was requested (tags path only). */
+  let matchCount: number | null = null;
   try {
     testCases = await repo.findAll(filters);
   } catch (err: unknown) {
@@ -102,19 +123,26 @@ export async function GET(request: Request) {
     // Re-query with search/project_id filter directly
     let q = supabase
       .from('test_cases')
-      .select('*, suite:suites!inner(project_id)')
+      // Exact count only on the tags path: it makes `total` the real number of matches
+      // rather than the page size. Deliberately not applied to the search/project_id
+      // paths, whose (pre-existing, wrong) total semantics stay untouched by this PR.
+      .select(
+        '*, suite:suites!inner(project_id)',
+        tags.length > 0 ? { count: 'exact' } : {},
+      )
       .is('deleted_at', null)
       .order('position', { ascending: true })
       .limit(clampedLimit);
     if (search) q = q.or(`display_id.ilike.%${search}%,title.ilike.%${search}%`);
     // Array overlap (`&&`) = ANY-of the requested tags; uses idx_test_cases_tags (GIN).
-    if (tags.length > 0) q = q.overlaps('tags', tags);
+    if (tags.length > 0) q = q.overlaps('tags', toPgArrayLiteral(tags));
     if (suiteId) q = q.eq('suite_id', suiteId);
     // project_id filter via inner join on suites
     if (projectId) q = q.eq('suites.project_id', projectId);
-    const { data, error } = await q;
+    const { data, error, count } = await q;
     if (error) return serverError(error.message);
     testCases = data ?? [];
+    matchCount = count ?? null;
   }
 
   if (includeSteps && testCases.length > 0) {
@@ -218,8 +246,10 @@ export async function GET(request: Request) {
     testCases = testCases.slice(0, clampedLimit);
   }
 
-  const total = testCases.length;
-  const has_more = limitClamped;
+  // matchCount is null on every path that didn't ask for an exact count, so total and
+  // has_more are byte-identical to before for those callers.
+  const total = matchCount ?? testCases.length;
+  const has_more = limitClamped || total > testCases.length;
 
   // If lean projection requested (MCP path), return minimal fields
   const lean = searchParams.get('fields') === 'lean';
