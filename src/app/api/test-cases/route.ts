@@ -39,6 +39,16 @@ export async function GET(request: Request) {
   const deleted = searchParams.get('deleted') === 'true';
   const search = searchParams.get('search')?.trim();
 
+  // Tag filter — accepts ?tags=a&tags=b or ?tags=a,b. Lowercased to match the canonical
+  // form written by tagsSchema (see validations/test-case.ts); matching is ANY-of.
+  const tags = [...new Set(
+    searchParams
+      .getAll('tags')
+      .flatMap((t) => t.split(','))
+      .map((t) => t.trim().toLowerCase())
+      .filter((t) => t.length > 0),
+  )];
+
   const repo = new TestCaseRepository(supabase);
 
   // Trash view — Editor+ only (403 for Viewers). Agents cannot reach trash via this route
@@ -88,7 +98,7 @@ export async function GET(request: Request) {
 
   // Text search applied in-memory (the supabase client query is constructed in findAll)
   // For search we need to re-query with ilike — fall through to direct query below
-  if (search || projectId) {
+  if (search || projectId || tags.length > 0) {
     // Re-query with search/project_id filter directly
     let q = supabase
       .from('test_cases')
@@ -97,6 +107,8 @@ export async function GET(request: Request) {
       .order('position', { ascending: true })
       .limit(clampedLimit);
     if (search) q = q.or(`display_id.ilike.%${search}%,title.ilike.%${search}%`);
+    // Array overlap (`&&`) = ANY-of the requested tags; uses idx_test_cases_tags (GIN).
+    if (tags.length > 0) q = q.overlaps('tags', tags);
     if (suiteId) q = q.eq('suite_id', suiteId);
     // project_id filter via inner join on suites
     if (projectId) q = q.eq('suites.project_id', projectId);
