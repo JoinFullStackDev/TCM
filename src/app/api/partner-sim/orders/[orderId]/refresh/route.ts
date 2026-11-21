@@ -7,7 +7,7 @@ interface RouteContext {
   params: Promise<{ orderId: string }>;
 }
 
-/** GET /v1/orders/{id}: per-item status and tracking. */
+/** GET {prefix}/orders/{id}: per-item status and tracking. */
 export async function POST(_request: Request, context: RouteContext) {
   const auth = await simAuth();
   if (!auth.ok) return auth.response;
@@ -30,7 +30,7 @@ export async function POST(_request: Request, context: RouteContext) {
     baseUrl: target.baseUrl,
     apiKey: target.apiKey,
     method: 'GET',
-    path: `/v1/orders/${encodeURIComponent(row.fsrx_order_id)}`,
+    path: `/orders/${encodeURIComponent(row.fsrx_order_id)}`,
   });
 
   let order = null;

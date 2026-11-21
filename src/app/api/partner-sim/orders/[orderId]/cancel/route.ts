@@ -9,7 +9,7 @@ interface RouteContext {
   params: Promise<{ orderId: string }>;
 }
 
-/** POST /v1/orders/{id}/cancel with a fresh Idempotency-Key. */
+/** POST {prefix}/orders/{id}/cancel with a fresh Idempotency-Key. */
 export async function POST(request: Request, context: RouteContext) {
   const auth = await simAuth();
   if (!auth.ok) return auth.response;
@@ -35,7 +35,7 @@ export async function POST(request: Request, context: RouteContext) {
     baseUrl: target.baseUrl,
     apiKey: target.apiKey,
     method: 'POST',
-    path: `/v1/orders/${encodeURIComponent(row.fsrx_order_id)}/cancel`,
+    path: `/orders/${encodeURIComponent(row.fsrx_order_id)}/cancel`,
     body: parsed.data.reason ? { reason: parsed.data.reason } : {},
     idempotencyKey: randomUUID(),
   });

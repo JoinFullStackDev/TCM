@@ -142,11 +142,11 @@ export default function PartnerFormDialog({ open, environments, partner, swapKey
             label="API base URL"
             value={apiBaseUrl}
             onChange={(e) => setApiBaseUrl(e.target.value)}
-            placeholder="https://<FullStackRx API host>"
+            placeholder="https://demo.fullstackrx.com"
             size="small"
             required
             error={!!apiBaseUrl && !urlOk}
-            helperText="The FullStackRx API host for this environment, with or without /v1. The simulator calls <this>/v1/orders."
+            helperText="The FullStackRx host for this environment (staging: https://demo.fullstackrx.com). The simulator calls <host>/api/partner/v1/…"
           />
           <TextField
             inputRef={keyRef}

@@ -1,3 +1,6 @@
+/** Where the Partner API is mounted on a FullStackRx host (the base URL is the bare host). */
+export const PARTNER_API_PREFIX = '/api/partner/v1';
+
 /**
  * One call from TCM's server to FullStackRx's Partner API. Pure apart from `fetch`
  * (injectable for tests); the result is what TCM records and shows, with the API key
@@ -22,6 +25,7 @@ export interface PartnerCallOptions {
   baseUrl: string;
   apiKey: string;
   method: 'GET' | 'POST';
+  /** Relative to PARTNER_API_PREFIX, e.g. '/orders'. */
   path: string;
   body?: unknown;
   idempotencyKey?: string;
@@ -48,7 +52,7 @@ export function redactKey(apiKey: string): string {
 export async function performPartnerCall(opts: PartnerCallOptions): Promise<PartnerCallResult> {
   const doFetch = opts.fetchImpl ?? fetch;
   const timeoutMs = opts.timeoutMs ?? 20_000;
-  const url = `${opts.baseUrl}${opts.path}`;
+  const url = `${opts.baseUrl}${PARTNER_API_PREFIX}${opts.path}`;
   const headers: Record<string, string> = {
     Accept: 'application/json, application/problem+json',
     Authorization: `Bearer ${opts.apiKey}`,
