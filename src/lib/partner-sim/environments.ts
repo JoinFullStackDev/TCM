@@ -25,9 +25,16 @@ export const UNREACHABLE_ENVIRONMENTS: Partial<Record<SimEnvironment, string>> =
   qa: "QA's FullStackRx only admits the VPN, so TCM can't reach it. Test the Partner API on staging.",
 };
 
-/** Trims spaces, a trailing slash and a trailing /v1, so either form can be pasted. */
+/**
+ * The bare host QA should store. Trims spaces and trailing slashes, and the Partner API
+ * prefix (/api/partner/v1, or a bare /v1) if a full URL was pasted.
+ */
 export function normalizeApiBase(url: string): string {
-  return url.trim().replace(/\/+$/, '').replace(/\/v1$/i, '').replace(/\/+$/, '');
+  return url
+    .trim()
+    .replace(/\/+$/, '')
+    .replace(/(\/api\/partner)?\/v1$/i, '')
+    .replace(/\/+$/, '');
 }
 
 /** An http(s) URL with a host and no query or fragment. */

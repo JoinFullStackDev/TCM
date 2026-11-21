@@ -25,6 +25,7 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import CancelOutlinedIcon from '@mui/icons-material/CancelOutlined';
 import ReplayIcon from '@mui/icons-material/Replay';
 import CallResultView from './CallResultView';
+import { PARTNER_API_PREFIX } from '@/lib/partner-sim/transport';
 import EventTimeline from './EventTimeline';
 import JsonBlock from './JsonBlock';
 import { HttpChip, OrderStatusChip } from './StatusChip';
@@ -174,7 +175,7 @@ export default function OrderDetailDrawer({ partner, orderId, onClose, onChanged
                 disabled={!o.fsrx_order_id || !!busy}
                 onClick={() => act('refresh')}
               >
-                Refresh (GET /v1/orders/&#123;id&#125;)
+                Refresh (GET …/orders/&#123;id&#125;)
               </Button>
               <Button
                 variant="outlined"
@@ -309,7 +310,7 @@ export default function OrderDetailDrawer({ partner, orderId, onClose, onChanged
             {live && (
               <>
                 <Typography variant="overline" color="text.secondary">
-                  Latest GET /v1/orders/&#123;id&#125;
+                  Latest GET {PARTNER_API_PREFIX}/orders/&#123;id&#125;
                 </Typography>
                 <JsonBlock value={live} maxHeight={300} />
               </>
@@ -322,7 +323,7 @@ export default function OrderDetailDrawer({ partner, orderId, onClose, onChanged
         <DialogTitle>Cancel this order in FullStackRx?</DialogTitle>
         <DialogContent>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Sends POST /v1/orders/&#123;id&#125;/cancel. Items already filled or shipped can&apos;t be cancelled (409
+            Sends POST {PARTNER_API_PREFIX}/orders/&#123;id&#125;/cancel. Items already filled or shipped can&apos;t be cancelled (409
             order_not_cancellable).
           </Typography>
           <TextField

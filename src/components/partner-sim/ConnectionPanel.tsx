@@ -19,6 +19,7 @@ import Button from '@mui/material/Button';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import VisibilityOffOutlinedIcon from '@mui/icons-material/VisibilityOffOutlined';
 import CallResultView from './CallResultView';
+import { PARTNER_API_PREFIX } from '@/lib/partner-sim/transport';
 import { getCredentials } from './api';
 import { formatTime, type CallResult, type SimPartner } from './types';
 
@@ -87,7 +88,7 @@ function KeysSection({ partner, onSwapKey }: { partner: SimPartner; onSwapKey: (
           </Typography>
         )}
       </Row>
-      <Row label="API">{partner.api_url ? `${partner.api_url}/v1` : '—'}</Row>
+      <Row label="API">{partner.api_url ? `${partner.api_url}${PARTNER_API_PREFIX}` : '—'}</Row>
       {error && <Alert severity="error">{error}</Alert>}
     </Paper>
   );
@@ -161,7 +162,7 @@ export default function ConnectionPanel({ partner, lastSync, onSwapKey }: Props)
 
       <Paper variant="outlined" sx={{ p: 2 }}>
         <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
-          Connection (GET /v1/connection)
+          Connection (GET {PARTNER_API_PREFIX}/connection)
         </Typography>
         {c ? (
           <>
@@ -189,7 +190,7 @@ export default function ConnectionPanel({ partner, lastSync, onSwapKey }: Props)
 
       <Paper variant="outlined">
         <Typography variant="subtitle2" sx={{ fontWeight: 700, p: 1.5 }}>
-          Catalog (GET /v1/catalog){cat ? ` · ${cat.items?.length ?? 0} items · fetched ${formatTime(partner.catalog_fetched_at)}` : ''}
+          Catalog (GET {PARTNER_API_PREFIX}/catalog){cat ? ` · ${cat.items?.length ?? 0} items · fetched ${formatTime(partner.catalog_fetched_at)}` : ''}
         </Typography>
         {cat ? (
           <Box sx={{ overflowX: 'auto' }}>

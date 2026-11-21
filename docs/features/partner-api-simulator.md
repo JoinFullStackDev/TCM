@@ -2,7 +2,7 @@
 
 **Where:** sidebar → Testing → **Partner API Sim** (`/partner-sim`). QA Engineer role and above.
 
-Lets QA act as a telehealth partner against FullStackRx's Partner Order API (`/v1/*`) without writing code:
+Lets QA act as a telehealth partner against FullStackRx's Partner Order API (`/api/partner/v1/*`) without writing code:
 save test partners with their keys, sync a connection's catalog, generate valid (or deliberately broken)
 orders with one click, send them, track their status, and watch the signed webhooks FullStackRx sends back.
 
@@ -14,9 +14,10 @@ from the internet. Staging is; QA's FullStackRx sits behind an internal load bal
 VPN, so TCM can't reach it (the partner form warns if you pick QA). Webhooks go FullStackRx → TCM's public
 receiver.
 
-The Partner API lives at `/v1/*`, but staging's load balancer only sends `/api/*` to the API; anything else
-reaches the Next.js site. Until FullStackRx routes `/v1/*` to the API (or moves the partner API under `/api`),
-calls to staging come back as an HTML 404, and the simulator says so.
+The Partner API lives at `<host>/api/partner/v1/*` (the OpenAPI document's servers are
+`https://app.fullstackrx.com` and `https://demo.fullstackrx.com`). Store the bare host as a partner's base URL;
+the prefix is added by the simulator (`PARTNER_API_PREFIX` in `transport.ts`). A host still running a build
+without the Partner API answers 401 (from the API) or a web page; the simulator flags the web page case.
 
 ## How QA uses it
 
@@ -27,7 +28,7 @@ calls to staging come back as an HTML 404, and the simulator says so.
    like. Enter a name, the environment (Staging), the **API base URL**, the key and (optionally) the
    `whsec_…` secret.
    Keys are encrypted at rest and can be shown or copied again from the partner's *Connection & catalog* tab.
-3. Click **Sync connection & catalog** (`GET /v1/connection` and `/v1/catalog`). This caches the allowed
+3. Click **Sync connection & catalog** (`GET /api/partner/v1/connection` and `/catalog`). This caches the allowed
    states, SKUs, prices and shipping methods for the order builder.
 4. **Webhooks:** on *Connection & catalog*, copy the *Webhook receiver* URL into the connection's
    **Webhooks** tab in FullStackRx, and paste the signing secret it shows into the partner (**Edit**).
@@ -48,8 +49,8 @@ calls to staging come back as an HTML 404, and the simulator says so.
    *Idempotency:* each send uses a new `Idempotency-Key`. **Retry with same key** resends the identical body
    with the same key (expect the same order back); "Use this key" with a changed body should give 409
    `idempotency_key_reused`; "Send none" should give 400 `idempotency_key_required`.
-6. **Orders tab:** every request with its response. Open one to **Refresh** (`GET /v1/orders/{id}`),
-   **Cancel** (`POST /v1/orders/{id}/cancel`), retry it, and see its webhook timeline (deduped on event id,
+6. **Orders tab:** every request with its response. Open one to **Refresh** (`GET …/orders/{id}`),
+   **Cancel** (`POST …/orders/{id}/cancel`), retry it, and see its webhook timeline (deduped on event id,
    ordered by the event's `createdAt`).
 7. **Prescribers tab:** a brand-new prescriber's first order waits in the pharmacy's Partner Inbox. Approve it
    there; every prescriber on an accepted order is saved automatically, and Happy path reuses the latest.

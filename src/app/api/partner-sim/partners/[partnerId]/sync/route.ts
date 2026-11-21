@@ -7,7 +7,7 @@ interface RouteContext {
   params: Promise<{ partnerId: string }>;
 }
 
-/** Re-reads GET /v1/connection and GET /v1/catalog and caches both on the partner. */
+/** Re-reads GET {prefix}/connection and {prefix}/catalog and caches both on the partner. */
 export async function POST(_request: Request, context: RouteContext) {
   const auth = await simAuth();
   if (!auth.ok) return auth.response;
@@ -17,8 +17,8 @@ export async function POST(_request: Request, context: RouteContext) {
   if (!target.ok) return target.response;
   const { baseUrl, apiKey } = target;
   const [connection, catalog] = await Promise.all([
-    callPartnerApi({ baseUrl, apiKey, method: 'GET', path: '/v1/connection' }),
-    callPartnerApi({ baseUrl, apiKey, method: 'GET', path: '/v1/catalog' }),
+    callPartnerApi({ baseUrl, apiKey, method: 'GET', path: '/connection' }),
+    callPartnerApi({ baseUrl, apiKey, method: 'GET', path: '/catalog' }),
   ]);
   const calls = { connection, catalog };
 

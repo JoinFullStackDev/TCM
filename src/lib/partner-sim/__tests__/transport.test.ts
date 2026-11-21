@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { performPartnerCall, redactKey } from '../transport';
+import { performPartnerCall, redactKey, PARTNER_API_PREFIX } from '../transport';
 import { isValidApiBase, normalizeApiBase, UNREACHABLE_ENVIRONMENTS } from '../environments';
 
 const KEY = 'fsrx_live_Abc123_supersecretvalueZq9X';
@@ -25,14 +25,15 @@ test('sends Bearer key, Idempotency-Key and JSON; reports a redacted Authorizati
     baseUrl: 'https://api.example.test',
     apiKey: KEY,
     method: 'POST',
-    path: '/v1/orders',
+    path: '/orders',
     body: { partnerOrderId: 'TCM-1' },
     idempotencyKey: 'key-1',
     fetchImpl: f.impl,
   });
 
   const sent = f.calls[0];
-  assert.equal(sent.url, 'https://api.example.test/v1/orders');
+  assert.equal(PARTNER_API_PREFIX, '/api/partner/v1');
+  assert.equal(sent.url, 'https://api.example.test/api/partner/v1/orders');
   const h = sent.init.headers as Record<string, string>;
   assert.equal(h.Authorization, `Bearer ${KEY}`);
   assert.equal(h['Idempotency-Key'], 'key-1');
@@ -52,7 +53,7 @@ test('sends Bearer key, Idempotency-Key and JSON; reports a redacted Authorizati
 test('a GET sends no body and no content type; an empty answer is null', async () => {
   const f = fakeFetch(() => new Response('', { status: 204 }));
   const r = await performPartnerCall({
-    baseUrl: 'https://api.example.test', apiKey: KEY, method: 'GET', path: '/v1/connection', fetchImpl: f.impl,
+    baseUrl: 'https://api.example.test', apiKey: KEY, method: 'GET', path: '/connection', fetchImpl: f.impl,
   });
   const init = f.calls[0].init;
   assert.equal(init.body, undefined);
@@ -65,7 +66,7 @@ test('a problem+json refusal comes back as data, not an error', async () => {
   const problem = { status: 422, code: 'invalid_npi', detail: 'bad check digit' };
   const f = fakeFetch(() => new Response(JSON.stringify(problem), { status: 422 }));
   const r = await performPartnerCall({
-    baseUrl: 'https://x.test', apiKey: KEY, method: 'POST', path: '/v1/orders', body: {}, fetchImpl: f.impl,
+    baseUrl: 'https://x.test', apiKey: KEY, method: 'POST', path: '/orders', body: {}, fetchImpl: f.impl,
   });
   assert.equal(r.status, 422);
   assert.equal(r.ok, false);
@@ -78,9 +79,10 @@ test('no answer reports the network cause and hints that QA is VPN-only', async 
     throw Object.assign(new TypeError('fetch failed'), { cause: { code: 'ENOTFOUND' } });
   });
   const r = await performPartnerCall({
-    baseUrl: 'https://nope.test', apiKey: KEY, method: 'GET', path: '/v1/catalog', fetchImpl: f.impl,
+    baseUrl: 'https://nope.test', apiKey: KEY, method: 'GET', path: '/catalog', fetchImpl: f.impl,
   });
   assert.equal(r.status, null);
+  assert.equal(r.url, 'https://nope.test/api/partner/v1/catalog');
   assert.match(r.error!, /^Request failed: ENOTFOUND\./);
   assert.match(r.error!, /VPN/);
 });
@@ -88,7 +90,7 @@ test('no answer reports the network cause and hints that QA is VPN-only', async 
 test('a non-JSON body is kept as text', async () => {
   const f = fakeFetch(() => new Response('<html>Bad gateway</html>', { status: 502 }));
   const r = await performPartnerCall({
-    baseUrl: 'https://x.test', apiKey: KEY, method: 'GET', path: '/v1/catalog', fetchImpl: f.impl,
+    baseUrl: 'https://x.test', apiKey: KEY, method: 'GET', path: '/catalog', fetchImpl: f.impl,
   });
   assert.equal(r.body, '<html>Bad gateway</html>');
 });
@@ -98,7 +100,10 @@ test('redactKey keeps the mode and last 4', () => {
   assert.equal(redactKey('something-else-1234'), '…1234');
 });
 
-test('API base URLs: /v1 and trailing slashes are optional; junk is refused', () => {
+test('API base URLs: the bare host is kept; a pasted prefix or trailing slash is trimmed; junk is refused', () => {
+  assert.equal(normalizeApiBase(' https://demo.fullstackrx.com/api/partner/v1/ '), 'https://demo.fullstackrx.com');
+  assert.equal(normalizeApiBase('https://demo.fullstackrx.com/API/Partner/V1'), 'https://demo.fullstackrx.com');
+  assert.equal(normalizeApiBase('https://demo.fullstackrx.com'), 'https://demo.fullstackrx.com');
   assert.equal(normalizeApiBase(' https://api.staging.example.com/v1/ '), 'https://api.staging.example.com');
   assert.equal(normalizeApiBase('https://api.staging.example.com/'), 'https://api.staging.example.com');
   assert.equal(normalizeApiBase('https://x.example.com/api/V1'), 'https://x.example.com/api');

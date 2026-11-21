@@ -27,6 +27,7 @@ import WebhookEventsPanel from '@/components/partner-sim/WebhookEventsPanel';
 import PrescribersPanel from '@/components/partner-sim/PrescribersPanel';
 import ConnectionPanel from '@/components/partner-sim/ConnectionPanel';
 import { looksLikeWebPage } from '@/components/partner-sim/CallResultView';
+import { PARTNER_API_PREFIX } from '@/lib/partner-sim/transport';
 import PartnerFormDialog from '@/components/partner-sim/PartnerFormDialog';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { KEY_SWAP_REMINDER_AFTER, type EnvironmentInfo } from '@/lib/partner-sim/environments';
@@ -97,7 +98,7 @@ export default function PartnerSimDetailPage({ params }: { params: Promise<{ par
         setToast(
           connection.error ??
             (looksLikeWebPage(connection)
-              ? "Sync failed: /v1 answered with a web page, not the Partner API. Check the API base URL, or this host doesn't route /v1 to the API yet."
+              ? `Sync failed: ${PARTNER_API_PREFIX} answered with a web page, not the Partner API. Check the base URL, or this FullStackRx host doesn't serve the Partner API yet.`
               : `Sync failed: connection ${connection.status ?? '—'}, catalog ${catalog.status ?? catalog.error ?? '—'}`),
         );
         setTab('connection');
@@ -175,7 +176,7 @@ export default function PartnerSimDetailPage({ params }: { params: Promise<{ par
           </Button>
         </Box>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          {partner.api_url ? `${partner.api_url}/v1` : 'No API base URL: Edit the partner to add one'}
+          {partner.api_url ? `${partner.api_url}${PARTNER_API_PREFIX}` : 'No API base URL: Edit the partner to add one'}
           {partner.connection?.pharmacyName ? ` · ${partner.connection.pharmacyName}` : ''}
           {partner.api_key_mode === 'test' ? ' · test key: every check runs and webhooks fire, but orders cancel themselves' : ''}
         </Typography>

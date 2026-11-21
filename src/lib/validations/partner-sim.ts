@@ -14,7 +14,7 @@ const webhookSecret = z
 const apiBaseUrl = z
   .string()
   .trim()
-  .refine(isValidApiBase, 'Must be the API base URL, e.g. https://api.example.com (with or without /v1)')
+  .refine(isValidApiBase, 'Must be the FullStackRx host, e.g. https://demo.fullstackrx.com')
   .transform(normalizeApiBase);
 
 export const createPartnerSchema = z.object({

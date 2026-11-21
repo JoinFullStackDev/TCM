@@ -25,7 +25,7 @@ export async function GET(_request: Request, context: RouteContext) {
   return NextResponse.json(data ?? []);
 }
 
-/** Sends POST /v1/orders and records the request with FullStackRx's answer. */
+/** Sends POST {prefix}/orders and records the request with FullStackRx's answer. */
 export async function POST(request: Request, context: RouteContext) {
   const auth = await simAuth();
   if (!auth.ok) return auth.response;
@@ -43,7 +43,7 @@ export async function POST(request: Request, context: RouteContext) {
     baseUrl: target.baseUrl,
     apiKey: target.apiKey,
     method: 'POST',
-    path: '/v1/orders',
+    path: '/orders',
     body: input.request,
     idempotencyKey: idempotencyKey || undefined,
   });

@@ -31,6 +31,7 @@ import { isValidNpi } from '@/lib/partner-sim/npi';
 import { ALL_STATES } from '@/lib/partner-sim/fake-data';
 import type { OrderPreset } from '@/lib/partner-sim/types';
 import CallResultView from './CallResultView';
+import { PARTNER_API_PREFIX } from '@/lib/partner-sim/transport';
 import { HttpChip } from './StatusChip';
 import { problemCode, type CallResult, type SimOrder, type SimPartner, type SimPrescriber } from './types';
 import { submitOrder, type SubmitBody } from './api';
@@ -614,7 +615,7 @@ export default function OrderBuilder({ partner, prescribers, orders, onSubmitted
             Send order
           </Button>
           <Typography variant="caption" color="text.secondary">
-            POST {partner.api_url ?? '…'}/v1/orders as {partner.name} ({partner.api_key_mode} key …{partner.api_key_last4})
+            POST {partner.api_url ?? '…'}{PARTNER_API_PREFIX}/orders as {partner.name} ({partner.api_key_mode} key …{partner.api_key_last4})
           </Typography>
         </Box>
         {submitError && (

@@ -3,7 +3,7 @@
 import { performPartnerCall, type PartnerCallResult } from './transport';
 
 export type { PartnerCallResult } from './transport';
-export { redactKey } from './transport';
+export { redactKey, PARTNER_API_PREFIX } from './transport';
 
 export function callPartnerApi(opts: {
   baseUrl: string;

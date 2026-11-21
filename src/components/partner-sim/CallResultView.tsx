@@ -8,6 +8,7 @@ import AccordionSummary from '@mui/material/AccordionSummary';
 import AccordionDetails from '@mui/material/AccordionDetails';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import JsonBlock from './JsonBlock';
+import { PARTNER_API_PREFIX } from '@/lib/partner-sim/transport';
 import { HttpChip } from './StatusChip';
 import { problemCode, type CallResult } from './types';
 
@@ -53,8 +54,8 @@ export default function CallResultView({
         )}
         {looksLikeWebPage(call) && (
           <Alert severity="warning" sx={{ mb: 1.5 }}>
-            This answer is a web page, not the Partner API. Either the API base URL is wrong, or this FullStackRx host
-            doesn&apos;t route <code>/v1</code> to its API yet (it sends it to the website instead).
+            This answer is a web page, not the Partner API. Either the base URL is wrong, or this FullStackRx host
+            doesn&apos;t serve <code>{PARTNER_API_PREFIX}</code> yet (an older build answers with the website).
           </Alert>
         )}
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '1fr 1fr' }, gap: 2 }}>
