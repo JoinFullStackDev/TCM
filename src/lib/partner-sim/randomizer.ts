@@ -7,7 +7,9 @@
 import { generateInvalidNpi, generateNpi, type Rng } from './npi';
 import {
   ALL_STATES,
-  ALLERGY_SETS,
+  ALLERGIES,
+  CONDITIONS,
+  MEDICATIONS,
   FIRST_NAMES_F,
   FIRST_NAMES_M,
   LAST_NAMES,
@@ -112,6 +114,14 @@ export const PRESETS: PresetInfo[] = [
 
 const pick = <T>(rng: Rng, list: readonly T[]): T => list[Math.floor(rng() * list.length)];
 const int = (rng: Rng, min: number, max: number) => min + Math.floor(rng() * (max - min + 1));
+/** `min` to `max` distinct entries from a list, in list order. */
+function pickSome<T>(rng: Rng, list: readonly T[], min: number, max: number): T[] {
+  const count = Math.min(int(rng, min, max), list.length);
+  const pool = list.map((v, i) => ({ v, i }));
+  const chosen: { v: T; i: number }[] = [];
+  for (let k = 0; k < count; k++) chosen.push(...pool.splice(Math.floor(rng() * pool.length), 1));
+  return chosen.sort((a, b) => a.i - b.i).map((c) => c.v);
+}
 const digits = (rng: Rng, n: number) => Array.from({ length: n }, () => int(rng, 0, 9)).join('');
 
 const pad = (n: number) => String(n).padStart(2, '0');
@@ -215,7 +225,10 @@ export function randomizeOrder(preset: OrderPreset, ctx: RandomizeContext): Rand
       state,
       zip: place.zip,
     },
-    allergies: [...pick(rng, ALLERGY_SETS)],
+    // Real values most of the time, so the order and script PDF show them; sometimes "none".
+    allergies: rng() < 0.25 ? ['NKDA'] : pickSome(rng, ALLERGIES, 1, 2),
+    conditions: rng() < 0.2 ? [] : pickSome(rng, CONDITIONS, 1, 2),
+    medications: rng() < 0.2 ? [] : pickSome(rng, MEDICATIONS, 1, 3),
   };
 
   // --- prescriber -------------------------------------------------------------------

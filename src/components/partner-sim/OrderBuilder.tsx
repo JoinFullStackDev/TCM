@@ -81,6 +81,47 @@ function Section({ title, action, children }: { title: string; action?: React.Re
   );
 }
 
+const splitList = (text: string) =>
+  text
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+/**
+ * A comma-separated list field. Keeps the raw text while typing (so "Penicillin, " can be
+ * typed) and only re-syncs when the list changes from outside, e.g. Randomize.
+ */
+function ListField({
+  label,
+  value,
+  onChange,
+  helper,
+}: {
+  label: string;
+  value: unknown;
+  onChange: (list: string[]) => void;
+  helper?: string;
+}) {
+  const list = Array.isArray(value) ? value.map(String) : [];
+  const joined = list.join(', ');
+  const [text, setText] = useState(joined);
+  // Adopt an outside change (Randomize, JSON edit) without fighting the user's typing.
+  // Both sides are normalized, so this settles after one update.
+  if (splitList(text).join(', ') !== splitList(joined).join(', ')) setText(joined);
+  return (
+    <TextField
+      label={label}
+      size="small"
+      value={text}
+      onChange={(e) => {
+        setText(e.target.value);
+        onChange(splitList(e.target.value));
+      }}
+      helperText={helper}
+    />
+  );
+}
+
 interface SubmitResult {
   order: SimOrder;
   call: CallResult;
@@ -261,7 +302,6 @@ export default function OrderBuilder({ partner, prescribers, orders, onSubmitted
   const npiValid = isValidNpi(npi);
   const shipState = String(getAt(draft, ['patient', 'shipTo', 'state']) ?? '');
   const stateAllowed = !allowedStates.length || allowedStates.includes(shipState);
-  const allergies = getAt(draft, ['patient', 'allergies']);
 
   const lastCode = result ? problemCode(result.call.body) : null;
 
@@ -378,20 +418,25 @@ export default function OrderBuilder({ partner, prescribers, orders, onSubmitted
               ])}
               {text('Phone', ['patient', 'phone'])}
               {text('Email', ['patient', 'email'])}
-              <TextField
+            </Box>
+            <Box sx={{ ...grid(3), mt: 1.5 }}>
+              <ListField
                 label="Allergies (comma-separated)"
-                size="small"
-                value={Array.isArray(allergies) ? allergies.join(', ') : ''}
-                onChange={(e) =>
-                  update(
-                    ['patient', 'allergies'],
-                    e.target.value
-                      .split(',')
-                      .map((s) => s.trim())
-                      .filter(Boolean),
-                  )
-                }
-                helperText='"NKDA" for none'
+                value={getAt(draft, ['patient', 'allergies'])}
+                onChange={(v) => update(['patient', 'allergies'], v)}
+                helper='"NKDA" for none known'
+              />
+              <ListField
+                label="Medical conditions (comma-separated)"
+                value={getAt(draft, ['patient', 'conditions'])}
+                onChange={(v) => update(['patient', 'conditions'], v)}
+                helper="Empty sends none known"
+              />
+              <ListField
+                label="Current medications (comma-separated)"
+                value={getAt(draft, ['patient', 'medications'])}
+                onChange={(v) => update(['patient', 'medications'], v)}
+                helper="Empty sends none known"
               />
             </Box>
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 2, mb: 1 }}>

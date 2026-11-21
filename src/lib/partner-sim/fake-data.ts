@@ -93,4 +93,35 @@ export const RATIONALES = [
   'Patient has a documented allergy to an excipient in the commercial product.',
 ];
 
-export const ALLERGY_SETS = [['NKDA'], ['NKDA'], ['NKDA'], ['Penicillin'], ['Sulfa drugs']];
+/**
+ * FullStackRx records ["NKDA"] (or an empty list) as "None known", so most sets name real
+ * allergies; otherwise the order and script PDF only ever show "None known".
+ */
+export const ALLERGIES = ['Penicillin', 'Sulfa drugs', 'Codeine', 'Latex', 'Shellfish', 'Amoxicillin', 'Aspirin'];
+
+/** Free-text medical conditions (FullStackRx's "medical history"). No commas: the form splits on them. */
+export const CONDITIONS = [
+  'Hypothyroidism',
+  'Hypertension',
+  'Type 2 diabetes',
+  'Hyperlipidemia',
+  'Asthma',
+  'GERD',
+  'Migraine',
+  'Menopause symptoms',
+  'Low testosterone',
+  'Anxiety',
+];
+
+/** Current medications with strength and directions. No commas: the form splits on them. */
+export const MEDICATIONS = [
+  'Levothyroxine 50 mcg once daily',
+  'Lisinopril 10 mg once daily',
+  'Metformin 500 mg twice daily',
+  'Atorvastatin 20 mg at bedtime',
+  'Albuterol inhaler as needed',
+  'Omeprazole 20 mg once daily',
+  'Sertraline 50 mg once daily',
+  'Vitamin D3 2000 IU once daily',
+  'Sumatriptan 50 mg as needed',
+];
