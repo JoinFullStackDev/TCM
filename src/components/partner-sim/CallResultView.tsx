@@ -2,6 +2,7 @@
 
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
+import Alert from '@mui/material/Alert';
 import Accordion from '@mui/material/Accordion';
 import AccordionSummary from '@mui/material/AccordionSummary';
 import AccordionDetails from '@mui/material/AccordionDetails';
@@ -9,6 +10,11 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import JsonBlock from './JsonBlock';
 import { HttpChip } from './StatusChip';
 import { problemCode, type CallResult } from './types';
+
+/** The Partner API only answers JSON; HTML means the request reached a website instead. */
+export function looksLikeWebPage(call: CallResult): boolean {
+  return (call.headers['content-type'] ?? '').includes('text/html');
+}
 
 /** One request to the Partner API and its answer, as the simulator saw them. */
 export default function CallResultView({
@@ -44,6 +50,12 @@ export default function CallResultView({
           <Typography color="error" variant="body2" sx={{ mb: 1.5 }}>
             {call.error}
           </Typography>
+        )}
+        {looksLikeWebPage(call) && (
+          <Alert severity="warning" sx={{ mb: 1.5 }}>
+            This answer is a web page, not the Partner API. Either the API base URL is wrong, or this FullStackRx host
+            doesn&apos;t route <code>/v1</code> to its API yet (it sends it to the website instead).
+          </Alert>
         )}
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '1fr 1fr' }, gap: 2 }}>
           <Box sx={{ minWidth: 0 }}>

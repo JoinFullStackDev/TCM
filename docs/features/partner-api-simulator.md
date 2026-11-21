@@ -8,10 +8,15 @@ orders with one click, send them, track their status, and watch the signed webho
 
 ## Where to test
 
-**Staging.** TCM's server makes every Partner API call, so the FullStackRx environment has to be reachable
+**Staging** (`https://demo.fullstackrx.com`, behind the public `fsrx-staging-alb`; the API shares the UI's
+host). TCM's server makes every Partner API call, so the FullStackRx environment has to be reachable
 from the internet. Staging is; QA's FullStackRx sits behind an internal load balancer that only admits the
 VPN, so TCM can't reach it (the partner form warns if you pick QA). Webhooks go FullStackRx → TCM's public
 receiver.
+
+The Partner API lives at `/v1/*`, but staging's load balancer only sends `/api/*` to the API; anything else
+reaches the Next.js site. Until FullStackRx routes `/v1/*` to the API (or moves the partner API under `/api`),
+calls to staging come back as an HTML 404, and the simulator says so.
 
 ## How QA uses it
 

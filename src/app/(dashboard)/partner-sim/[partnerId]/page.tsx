@@ -26,6 +26,7 @@ import OrderDetailDrawer from '@/components/partner-sim/OrderDetailDrawer';
 import WebhookEventsPanel from '@/components/partner-sim/WebhookEventsPanel';
 import PrescribersPanel from '@/components/partner-sim/PrescribersPanel';
 import ConnectionPanel from '@/components/partner-sim/ConnectionPanel';
+import { looksLikeWebPage } from '@/components/partner-sim/CallResultView';
 import PartnerFormDialog from '@/components/partner-sim/PartnerFormDialog';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { KEY_SWAP_REMINDER_AFTER, type EnvironmentInfo } from '@/lib/partner-sim/environments';
@@ -94,7 +95,10 @@ export default function PartnerSimDetailPage({ params }: { params: Promise<{ par
       if (connection.ok && catalog.ok) setToast('Connection and catalog synced');
       else {
         setToast(
-          connection.error ?? `Sync failed: connection ${connection.status ?? '—'}, catalog ${catalog.status ?? catalog.error ?? '—'}`,
+          connection.error ??
+            (looksLikeWebPage(connection)
+              ? "Sync failed: /v1 answered with a web page, not the Partner API. Check the API base URL, or this host doesn't route /v1 to the API yet."
+              : `Sync failed: connection ${connection.status ?? '—'}, catalog ${catalog.status ?? catalog.error ?? '—'}`),
         );
         setTab('connection');
       }
