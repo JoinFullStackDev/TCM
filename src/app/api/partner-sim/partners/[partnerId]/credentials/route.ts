@@ -8,9 +8,8 @@ interface RouteContext {
 }
 
 /**
- * The partner's API key and webhook secret in plain text, for the tester's browser.
- * Needed when the browser calls FullStackRx itself (QA is only reachable on the VPN), and
- * for "show / copy key". These are QA/staging test keys, never production ones.
+ * The partner's API key and webhook secret in plain text, for "show / copy" on the
+ * partner page. These are QA/staging test keys, never production ones.
  */
 export async function GET(_request: Request, context: RouteContext) {
   const auth = await simAuth();

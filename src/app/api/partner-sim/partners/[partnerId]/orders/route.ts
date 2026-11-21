@@ -1,10 +1,10 @@
 import { randomUUID } from 'crypto';
 import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { validationError, serverError, notFound } from '@/lib/api/helpers';
+import { validationError, serverError } from '@/lib/api/helpers';
 import { submitOrderSchema } from '@/lib/validations/partner-sim';
 import { simAuth, loadPartnerTarget, orderSummaryFrom, ORDER_COLUMNS } from '@/lib/partner-sim/server';
-import { callPartnerApi, type PartnerCallResult } from '@/lib/partner-sim/client';
+import { callPartnerApi } from '@/lib/partner-sim/client';
 
 interface RouteContext {
   params: Promise<{ partnerId: string }>;
@@ -25,10 +25,7 @@ export async function GET(_request: Request, context: RouteContext) {
   return NextResponse.json(data ?? []);
 }
 
-/**
- * Records a POST /v1/orders with FullStackRx's answer. With `call` in the body the
- * tester's browser already sent it (call_mode 'browser'); otherwise TCM's server sends it.
- */
+/** Sends POST /v1/orders and records the request with FullStackRx's answer. */
 export async function POST(request: Request, context: RouteContext) {
   const auth = await simAuth();
   if (!auth.ok) return auth.response;
@@ -38,29 +35,18 @@ export async function POST(request: Request, context: RouteContext) {
   if (!parsed.success) return validationError(parsed.error.flatten());
   const input = parsed.data;
 
-  let idempotencyKey: string;
-  let call: PartnerCallResult;
-  if (input.call) {
-    const { count } = await auth.db
-      .from('partner_sim_partners')
-      .select('id', { count: 'exact', head: true })
-      .eq('id', partnerId);
-    if (!count) return notFound('Partner');
-    idempotencyKey = input.send_idempotency_key ? input.idempotency_key ?? '' : '';
-    call = input.call;
-  } else {
-    const target = await loadPartnerTarget(auth.db, partnerId);
-    if (!target.ok) return target.response;
-    idempotencyKey = input.send_idempotency_key ? input.idempotency_key ?? randomUUID() : '';
-    call = await callPartnerApi({
-      baseUrl: target.baseUrl,
-      apiKey: target.apiKey,
-      method: 'POST',
-      path: '/v1/orders',
-      body: input.request,
-      idempotencyKey: idempotencyKey || undefined,
-    });
-  }
+  const target = await loadPartnerTarget(auth.db, partnerId);
+  if (!target.ok) return target.response;
+
+  const idempotencyKey = input.send_idempotency_key ? input.idempotency_key ?? randomUUID() : '';
+  const call = await callPartnerApi({
+    baseUrl: target.baseUrl,
+    apiKey: target.apiKey,
+    method: 'POST',
+    path: '/v1/orders',
+    body: input.request,
+    idempotencyKey: idempotencyKey || undefined,
+  });
 
   const summary = orderSummaryFrom(call.body);
   const partnerOrderId = typeof input.request.partnerOrderId === 'string' ? input.request.partnerOrderId : null;

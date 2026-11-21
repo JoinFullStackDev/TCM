@@ -87,19 +87,7 @@ function KeysSection({ partner, onSwapKey }: { partner: SimPartner; onSwapKey: (
           </Typography>
         )}
       </Row>
-      <Row label="Requests go">
-        {partner.call_mode === 'browser' ? (
-          <>
-            from <strong>your browser</strong> to {partner.api_url ?? '—'}/v1. For QA, have the VPN on. FullStackRx must
-            also allow this TCM site&apos;s origin in its CORS settings for /v1.
-          </>
-        ) : (
-          <>
-            from <strong>TCM&apos;s server</strong> to {partner.api_url ?? '—'}/v1, so the environment must be reachable
-            from the internet (staging, not VPN-only QA).
-          </>
-        )}
-      </Row>
+      <Row label="API">{partner.api_url ? `${partner.api_url}/v1` : '—'}</Row>
       {error && <Alert severity="error">{error}</Alert>}
     </Paper>
   );

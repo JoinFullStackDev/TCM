@@ -614,8 +614,7 @@ export default function OrderBuilder({ partner, prescribers, orders, onSubmitted
             Send order
           </Button>
           <Typography variant="caption" color="text.secondary">
-            POST {partner.api_url ?? '…'}/v1/orders from {partner.call_mode === 'browser' ? 'your browser' : "TCM's server"} as{' '}
-            {partner.name} ({partner.api_key_mode} key …{partner.api_key_last4})
+            POST {partner.api_url ?? '…'}/v1/orders as {partner.name} ({partner.api_key_mode} key …{partner.api_key_last4})
           </Typography>
         </Box>
         {submitError && (

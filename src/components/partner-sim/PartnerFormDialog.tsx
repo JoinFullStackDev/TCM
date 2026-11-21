@@ -11,19 +11,13 @@ import MenuItem from '@mui/material/MenuItem';
 import Alert from '@mui/material/Alert';
 import Stack from '@mui/material/Stack';
 import FormControlLabel from '@mui/material/FormControlLabel';
-import FormLabel from '@mui/material/FormLabel';
 import Checkbox from '@mui/material/Checkbox';
-import RadioGroup from '@mui/material/RadioGroup';
-import Radio from '@mui/material/Radio';
-import Typography from '@mui/material/Typography';
 import {
-  DEFAULT_CALL_MODE,
   isValidApiBase,
-  type CallMode,
+  UNREACHABLE_ENVIRONMENTS,
   type EnvironmentInfo,
   type SimEnvironment,
 } from '@/lib/partner-sim/environments';
-import { forgetCredentials } from './api';
 import { readError, type SimPartner } from './types';
 
 interface Props {
@@ -42,9 +36,8 @@ const RESPONSE_STATUSES = [200, 202, 204, 400, 404, 410, 429, 500, 503];
 export default function PartnerFormDialog({ open, environments, partner, swapKey, onClose, onSaved }: Props) {
   const editing = !!partner;
   const [name, setName] = useState('');
-  const [environment, setEnvironment] = useState<SimEnvironment>('qa');
+  const [environment, setEnvironment] = useState<SimEnvironment>('staging');
   const [apiBaseUrl, setApiBaseUrl] = useState('');
-  const [callMode, setCallMode] = useState<CallMode>('browser');
   const [apiKey, setApiKey] = useState('');
   const [secret, setSecret] = useState('');
   const [removeSecret, setRemoveSecret] = useState(false);
@@ -57,11 +50,10 @@ export default function PartnerFormDialog({ open, environments, partner, swapKey
 
   useEffect(() => {
     if (!open) return;
-    const env = partner?.environment ?? 'qa';
+    const env = partner?.environment ?? 'staging';
     setName(partner?.name ?? '');
     setEnvironment(env);
     setApiBaseUrl(partner?.api_base_url ?? partner?.api_url ?? envDefault(env));
-    setCallMode(partner?.call_mode ?? DEFAULT_CALL_MODE[env]);
     setApiKey('');
     setSecret('');
     setRemoveSecret(false);
@@ -72,9 +64,8 @@ export default function PartnerFormDialog({ open, environments, partner, swapKey
   }, [open, partner, swapKey]);
 
   const changeEnvironment = (next: SimEnvironment) => {
-    // Follow the environment's defaults unless QA already typed something else.
+    // Follow the environment's default URL unless QA already typed something else.
     if (!apiBaseUrl || apiBaseUrl === envDefault(environment)) setApiBaseUrl(envDefault(next));
-    if (callMode === DEFAULT_CALL_MODE[environment]) setCallMode(DEFAULT_CALL_MODE[next]);
     setEnvironment(next);
   };
 
@@ -87,7 +78,6 @@ export default function PartnerFormDialog({ open, environments, partner, swapKey
       name,
       environment,
       api_base_url: apiBaseUrl,
-      call_mode: callMode,
       webhook_response_status: responseStatus,
     };
     if (apiKey.trim()) body.api_key = apiKey.trim();
@@ -104,9 +94,7 @@ export default function PartnerFormDialog({ open, environments, partner, swapKey
         setError(await readError(res));
         return;
       }
-      const saved = (await res.json()) as SimPartner;
-      forgetCredentials(saved.id);
-      onSaved(saved);
+      onSaved((await res.json()) as SimPartner);
       onClose();
     } finally {
       setSaving(false);
@@ -147,6 +135,9 @@ export default function PartnerFormDialog({ open, environments, partner, swapKey
               </MenuItem>
             ))}
           </TextField>
+          {UNREACHABLE_ENVIRONMENTS[environment] && (
+            <Alert severity="warning">{UNREACHABLE_ENVIRONMENTS[environment]}</Alert>
+          )}
           <TextField
             label="API base URL"
             value={apiBaseUrl}
@@ -157,29 +148,6 @@ export default function PartnerFormDialog({ open, environments, partner, swapKey
             error={!!apiBaseUrl && !urlOk}
             helperText="The FullStackRx API host for this environment, with or without /v1. The simulator calls <this>/v1/orders."
           />
-          <div>
-            <FormLabel sx={{ fontSize: '0.8rem' }}>Send requests from</FormLabel>
-            <RadioGroup value={callMode} onChange={(e) => setCallMode(e.target.value as CallMode)}>
-              <FormControlLabel
-                value="browser"
-                control={<Radio size="small" />}
-                label={
-                  <Typography variant="body2">
-                    <strong>My browser</strong> (QA). Works wherever your machine can reach FullStackRx, e.g. on the VPN.
-                  </Typography>
-                }
-              />
-              <FormControlLabel
-                value="server"
-                control={<Radio size="small" />}
-                label={
-                  <Typography variant="body2">
-                    <strong>TCM&apos;s server</strong> (staging). Only for environments reachable from the internet.
-                  </Typography>
-                }
-              />
-            </RadioGroup>
-          </div>
           <TextField
             inputRef={keyRef}
             label={editing ? `API key (current: …${partner!.api_key_last4}; leave blank to keep)` : 'API key'}

@@ -92,8 +92,8 @@ export default function OrderDetailDrawer({ partner, orderId, onClose, onChanged
     try {
       const r =
         kind === 'cancel'
-          ? await cancelOrder(partner, detail.order, reason)
-          : await refreshOrder(partner, detail.order);
+          ? await cancelOrder(detail.order, reason)
+          : await refreshOrder(detail.order);
       if (!r.ok) {
         setError(r.error);
         return;
@@ -277,8 +277,7 @@ export default function OrderDetailDrawer({ partner, orderId, onClose, onChanged
                       {i + 1}.
                     </Typography>
                     <HttpChip status={a.response_status} />
-                    {/* A browser can't read Idempotent-Replayed unless FullStackRx's CORS exposes it,
-                        so the same order id as the first send also counts as a replay. */}
+                    {/* Idempotent-Replayed is the signal; the same order id as the first send is too. */}
                     {(a.response_headers?.['idempotent-replayed'] ||
                       (i > 0 && !!a.fsrx_order_id && a.fsrx_order_id === detail!.attempts[0].fsrx_order_id)) && (
                       <Typography variant="caption" color="warning.main">

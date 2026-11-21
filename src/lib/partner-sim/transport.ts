@@ -1,10 +1,7 @@
 /**
- * One call to FullStackRx's Partner API, from either side:
- *  - 'server': TCM's route handlers (public environments such as staging).
- *  - 'browser': the tester's browser (QA, which only admits the VPN). This needs
- *    FullStackRx's CORS to allow TCM's origin on /v1, and the browser can only read
- *    response headers that CORS exposes (Idempotent-Replayed among them, once exposed).
- * Returns the same shape either way, so TCM records both identically.
+ * One call from TCM's server to FullStackRx's Partner API. Pure apart from `fetch`
+ * (injectable for tests); the result is what TCM records and shows, with the API key
+ * redacted from the request headers.
  */
 
 export interface PartnerCallResult {
@@ -17,7 +14,7 @@ export interface PartnerCallResult {
   headers: Record<string, string>;
   body: unknown;
   durationMs: number;
-  /** Set when there was no HTTP answer (unreachable, refused by CORS, timed out). */
+  /** Set when there was no HTTP answer (DNS, refused, timed out). */
   error?: string;
 }
 
@@ -28,7 +25,6 @@ export interface PartnerCallOptions {
   path: string;
   body?: unknown;
   idempotencyKey?: string;
-  runtime: 'server' | 'browser';
   timeoutMs?: number;
   fetchImpl?: typeof fetch;
 }
@@ -49,15 +45,6 @@ export function redactKey(apiKey: string): string {
   return `${mode}…${apiKey.slice(-4)}`;
 }
 
-/** Why a browser fetch failed with no answer: almost always the VPN or CORS. */
-export function browserNetworkHint(url: string, origin: string): string {
-  return (
-    `Your browser got no answer from ${url}. Either FullStackRx isn't reachable from this machine ` +
-    `(for QA, turn the VPN on), or FullStackRx's CORS doesn't allow ${origin} on /v1 yet. ` +
-    `The browser console shows which.`
-  );
-}
-
 export async function performPartnerCall(opts: PartnerCallOptions): Promise<PartnerCallResult> {
   const doFetch = opts.fetchImpl ?? fetch;
   const timeoutMs = opts.timeoutMs ?? 20_000;
@@ -65,8 +52,8 @@ export async function performPartnerCall(opts: PartnerCallOptions): Promise<Part
   const headers: Record<string, string> = {
     Accept: 'application/json, application/problem+json',
     Authorization: `Bearer ${opts.apiKey}`,
+    'User-Agent': 'TCM-PartnerSimulator/1',
   };
-  if (opts.runtime === 'server') headers['User-Agent'] = 'TCM-PartnerSimulator/1';
   if (opts.body !== undefined) headers['Content-Type'] = 'application/json';
   if (opts.idempotencyKey) headers['Idempotency-Key'] = opts.idempotencyKey;
 
@@ -80,7 +67,6 @@ export async function performPartnerCall(opts: PartnerCallOptions): Promise<Part
       body: opts.body === undefined ? undefined : JSON.stringify(opts.body),
       signal: AbortSignal.timeout(timeoutMs),
       cache: 'no-store',
-      ...(opts.runtime === 'browser' ? { mode: 'cors' as const, credentials: 'omit' as const } : {}),
     });
     const text = await res.text();
     let body: unknown = text;
@@ -97,11 +83,10 @@ export async function performPartnerCall(opts: PartnerCallOptions): Promise<Part
     return { ...base, status: res.status, ok: res.ok, headers: kept, body, durationMs: Date.now() - started };
   } catch (err) {
     const e = err as Error & { cause?: { code?: string; message?: string } };
-    let error: string;
-    if (e.name === 'TimeoutError') error = `Timed out after ${timeoutMs / 1000}s`;
-    else if (opts.runtime === 'browser')
-      error = browserNetworkHint(url, typeof location === 'undefined' ? 'this TCM site' : location.origin);
-    else error = `Request failed: ${e.cause?.code || e.cause?.message || e.message}`;
+    const error =
+      e.name === 'TimeoutError'
+        ? `Timed out after ${timeoutMs / 1000}s`
+        : `Request failed: ${e.cause?.code || e.cause?.message || e.message}. Is this environment reachable from the internet? (QA is VPN-only.)`;
     return { ...base, status: null, ok: false, headers: {}, body: null, durationMs: Date.now() - started, error };
   }
 }

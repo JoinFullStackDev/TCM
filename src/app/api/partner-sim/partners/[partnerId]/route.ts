@@ -56,7 +56,6 @@ export async function PATCH(request: Request, context: RouteContext) {
 
   const update: Record<string, unknown> = { updated_at: new Date().toISOString() };
   if (input.name !== undefined) update.name = input.name;
-  if (input.call_mode !== undefined) update.call_mode = input.call_mode;
   if (input.webhook_response_status !== undefined) update.webhook_response_status = input.webhook_response_status;
   if (input.environment !== undefined) update.environment = input.environment;
   if (input.api_base_url !== undefined) update.api_base_url = input.api_base_url;

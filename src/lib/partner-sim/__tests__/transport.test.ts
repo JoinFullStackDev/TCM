@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { performPartnerCall, redactKey } from '../transport';
-import { isValidApiBase, normalizeApiBase, DEFAULT_CALL_MODE } from '../environments';
+import { isValidApiBase, normalizeApiBase, UNREACHABLE_ENVIRONMENTS } from '../environments';
 
 const KEY = 'fsrx_live_Abc123_supersecretvalueldF8';
 
@@ -28,7 +28,6 @@ test('sends Bearer key, Idempotency-Key and JSON; reports a redacted Authorizati
     path: '/v1/orders',
     body: { partnerOrderId: 'TCM-1' },
     idempotencyKey: 'key-1',
-    runtime: 'server',
     fetchImpl: f.impl,
   });
 
@@ -50,21 +49,15 @@ test('sends Bearer key, Idempotency-Key and JSON; reports a redacted Authorizati
   assert.ok(!JSON.stringify(r).includes('supersecret'), 'the key never appears in the result');
 });
 
-test('browser runtime: CORS mode, no cookies, no User-Agent header', async () => {
+test('a GET sends no body and no content type; an empty answer is null', async () => {
   const f = fakeFetch(() => new Response('', { status: 204 }));
   const r = await performPartnerCall({
-    baseUrl: 'https://api.example.test',
-    apiKey: KEY,
-    method: 'GET',
-    path: '/v1/connection',
-    runtime: 'browser',
-    fetchImpl: f.impl,
+    baseUrl: 'https://api.example.test', apiKey: KEY, method: 'GET', path: '/v1/connection', fetchImpl: f.impl,
   });
   const init = f.calls[0].init;
-  assert.equal(init.mode, 'cors');
-  assert.equal(init.credentials, 'omit');
-  assert.equal((init.headers as Record<string, string>)['User-Agent'], undefined);
-  assert.equal((init.headers as Record<string, string>)['Content-Type'], undefined, 'no body, no content type');
+  assert.equal(init.body, undefined);
+  assert.equal((init.headers as Record<string, string>)['Content-Type'], undefined);
+  assert.equal((init.headers as Record<string, string>)['Idempotency-Key'], undefined);
   assert.equal(r.body, null);
 });
 
@@ -72,7 +65,7 @@ test('a problem+json refusal comes back as data, not an error', async () => {
   const problem = { status: 422, code: 'invalid_npi', detail: 'bad check digit' };
   const f = fakeFetch(() => new Response(JSON.stringify(problem), { status: 422 }));
   const r = await performPartnerCall({
-    baseUrl: 'https://x.test', apiKey: KEY, method: 'POST', path: '/v1/orders', body: {}, runtime: 'browser', fetchImpl: f.impl,
+    baseUrl: 'https://x.test', apiKey: KEY, method: 'POST', path: '/v1/orders', body: {}, fetchImpl: f.impl,
   });
   assert.equal(r.status, 422);
   assert.equal(r.ok, false);
@@ -80,33 +73,22 @@ test('a problem+json refusal comes back as data, not an error', async () => {
   assert.equal(r.error, undefined);
 });
 
-test('no answer in the browser points at the VPN or CORS', async () => {
-  const f = fakeFetch(() => {
-    throw new TypeError('Failed to fetch');
-  });
-  const r = await performPartnerCall({
-    baseUrl: 'https://qa-api.example.test', apiKey: KEY, method: 'GET', path: '/v1/catalog', runtime: 'browser', fetchImpl: f.impl,
-  });
-  assert.equal(r.status, null);
-  assert.match(r.error!, /VPN/);
-  assert.match(r.error!, /CORS/);
-  assert.match(r.error!, /qa-api\.example\.test\/v1\/catalog/);
-});
-
-test('no answer on the server reports the network cause', async () => {
+test('no answer reports the network cause and hints that QA is VPN-only', async () => {
   const f = fakeFetch(() => {
     throw Object.assign(new TypeError('fetch failed'), { cause: { code: 'ENOTFOUND' } });
   });
   const r = await performPartnerCall({
-    baseUrl: 'https://nope.test', apiKey: KEY, method: 'GET', path: '/v1/catalog', runtime: 'server', fetchImpl: f.impl,
+    baseUrl: 'https://nope.test', apiKey: KEY, method: 'GET', path: '/v1/catalog', fetchImpl: f.impl,
   });
-  assert.equal(r.error, 'Request failed: ENOTFOUND');
+  assert.equal(r.status, null);
+  assert.match(r.error!, /^Request failed: ENOTFOUND\./);
+  assert.match(r.error!, /VPN/);
 });
 
 test('a non-JSON body is kept as text', async () => {
   const f = fakeFetch(() => new Response('<html>Bad gateway</html>', { status: 502 }));
   const r = await performPartnerCall({
-    baseUrl: 'https://x.test', apiKey: KEY, method: 'GET', path: '/v1/catalog', runtime: 'server', fetchImpl: f.impl,
+    baseUrl: 'https://x.test', apiKey: KEY, method: 'GET', path: '/v1/catalog', fetchImpl: f.impl,
   });
   assert.equal(r.body, '<html>Bad gateway</html>');
 });
@@ -117,17 +99,17 @@ test('redactKey keeps the mode and last 4', () => {
 });
 
 test('API base URLs: /v1 and trailing slashes are optional; junk is refused', () => {
-  assert.equal(normalizeApiBase(' https://api.qa.example.com/v1/ '), 'https://api.qa.example.com');
-  assert.equal(normalizeApiBase('https://api.qa.example.com/'), 'https://api.qa.example.com');
+  assert.equal(normalizeApiBase(' https://api.staging.example.com/v1/ '), 'https://api.staging.example.com');
+  assert.equal(normalizeApiBase('https://api.staging.example.com/'), 'https://api.staging.example.com');
   assert.equal(normalizeApiBase('https://x.example.com/api/V1'), 'https://x.example.com/api');
-  assert.ok(isValidApiBase('https://api.qa.example.com/v1'));
+  assert.ok(isValidApiBase('https://api.staging.example.com/v1'));
   assert.ok(isValidApiBase('http://10.0.1.5:8080'));
-  for (const bad of ['', 'api.qa.example.com', 'ftp://x.test', 'https://x.test/?a=1', 'not a url']) {
+  for (const bad of ['', 'api.staging.example.com', 'ftp://x.test', 'https://x.test/?a=1', 'not a url']) {
     assert.equal(isValidApiBase(bad), false, bad);
   }
 });
 
-test('QA defaults to calling from the browser (VPN-only); staging from the server', () => {
-  assert.equal(DEFAULT_CALL_MODE.qa, 'browser');
-  assert.equal(DEFAULT_CALL_MODE.staging, 'server');
+test('QA is flagged as unreachable from TCM; staging is not', () => {
+  assert.match(UNREACHABLE_ENVIRONMENTS.qa!, /VPN/);
+  assert.equal(UNREACHABLE_ENVIRONMENTS.staging, undefined);
 });

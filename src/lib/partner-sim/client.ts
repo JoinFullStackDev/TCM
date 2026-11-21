@@ -1,7 +1,4 @@
-/**
- * Server-side calls to FullStackRx's Partner API (call_mode 'server', e.g. staging).
- * QA's FullStackRx is VPN-only, so for it the browser calls instead (see transport.ts).
- */
+/** Server-side calls to FullStackRx's Partner API (see transport.ts). */
 
 import { performPartnerCall, type PartnerCallResult } from './transport';
 
@@ -16,5 +13,5 @@ export function callPartnerApi(opts: {
   body?: unknown;
   idempotencyKey?: string;
 }): Promise<PartnerCallResult> {
-  return performPartnerCall({ ...opts, runtime: 'server' });
+  return performPartnerCall(opts);
 }

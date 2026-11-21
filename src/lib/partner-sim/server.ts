@@ -12,11 +12,11 @@ import { withAuth, notFound, serverError } from '@/lib/api/helpers';
 import { createServiceClient } from '@/lib/supabase/server';
 import type { Permission } from '@/lib/auth/rbac';
 import { decryptSecret, MissingEncryptionKeyError } from './crypto';
-import { resolveApiBase, type CallMode, type SimEnvironment } from './environments';
+import { resolveApiBase, type SimEnvironment } from './environments';
 
-/** Everything about a partner that the browser sees without asking for credentials. */
+/** Everything about a partner the browser sees, short of the keys themselves. */
 export const PARTNER_PUBLIC_COLUMNS =
-  'id, name, environment, api_base_url, call_mode, api_key_last4, api_key_mode, api_key_set_at, ' +
+  'id, name, environment, api_base_url, api_key_last4, api_key_mode, api_key_set_at, ' +
   'webhook_secret_last4, webhook_response_status, connection, connection_checked_at, catalog, ' +
   'catalog_fetched_at, created_by, created_at, updated_at';
 
@@ -53,7 +53,6 @@ interface PartnerSecretsRow {
   name: string;
   environment: SimEnvironment;
   api_base_url: string | null;
-  call_mode: CallMode;
   api_key_encrypted: string;
   webhook_secret_encrypted: string | null;
 }
@@ -66,7 +65,7 @@ export type PartnerTarget =
 export async function loadPartnerTarget(db: SupabaseClient, partnerId: string): Promise<PartnerTarget> {
   const { data, error } = await db
     .from('partner_sim_partners')
-    .select('id, name, environment, api_base_url, call_mode, api_key_encrypted, webhook_secret_encrypted')
+    .select('id, name, environment, api_base_url, api_key_encrypted, webhook_secret_encrypted')
     .eq('id', partnerId)
     .maybeSingle();
   if (error) return { ok: false, response: serverError(error.message) };

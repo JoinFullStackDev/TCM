@@ -9,7 +9,7 @@ import {
   apiKeyMode,
   MissingEncryptionKeyError,
 } from '@/lib/partner-sim/crypto';
-import { DEFAULT_CALL_MODE, listEnvironments, webhookBaseUrl } from '@/lib/partner-sim/environments';
+import { listEnvironments, webhookBaseUrl } from '@/lib/partner-sim/environments';
 
 export async function GET(request: NextRequest) {
   const auth = await simAuth();
@@ -53,7 +53,6 @@ export async function POST(request: Request) {
       name: input.name,
       environment: input.environment,
       api_base_url: input.api_base_url,
-      call_mode: input.call_mode ?? DEFAULT_CALL_MODE[input.environment],
       api_key_encrypted: apiKeyEncrypted,
       api_key_last4: last4(input.api_key),
       api_key_mode: apiKeyMode(input.api_key),

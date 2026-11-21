@@ -153,7 +153,6 @@ export default function PartnerSimDetailPage({ params }: { params: Promise<{ par
           </Typography>
           <Chip label={envLabel} size="small" />
           <Chip label={`${partner.api_key_mode} key …${partner.api_key_last4}`} size="small" color={partner.api_key_mode === 'live' ? 'warning' : 'info'} variant="outlined" />
-          <Chip label={partner.call_mode === 'browser' ? 'calls from your browser' : "calls from TCM's server"} size="small" variant="outlined" />
           {partner.connection?.status && <Chip label={`connection ${partner.connection.status}`} size="small" variant="outlined" />}
           <Box sx={{ flex: 1 }} />
           {partner.docs_url && (

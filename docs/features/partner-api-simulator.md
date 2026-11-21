@@ -6,27 +6,21 @@ Lets QA act as a telehealth partner against FullStackRx's Partner Order API (`/v
 save test partners with their keys, sync a connection's catalog, generate valid (or deliberately broken)
 orders with one click, send them, track their status, and watch the signed webhooks FullStackRx sends back.
 
-## How requests reach FullStackRx
+## Where to test
 
-QA's FullStackRx sits behind an internal load balancer that only admits the VPN, so TCM's server (Vercel)
-can't reach it. Each partner therefore has a **call mode**:
-
-| Call mode | Who calls FullStackRx | Use for | Needs |
-|---|---|---|---|
-| **My browser** (default for QA) | the tester's browser; TCM only records the answer | QA (VPN) | VPN on, and FullStackRx's CORS allowing TCM's origin on `/v1` |
-| **TCM's server** (default for staging) | TCM's route handlers | staging (public) | the environment reachable from the internet |
-
-Until FullStackRx allows TCM's origin in CORS, browser mode fails with a message naming the VPN and CORS;
-the browser console shows which. Webhooks always go FullStackRx → TCM's public receiver, so they work in
-both modes.
+**Staging.** TCM's server makes every Partner API call, so the FullStackRx environment has to be reachable
+from the internet. Staging is; QA's FullStackRx sits behind an internal load balancer that only admits the
+VPN, so TCM can't reach it (the partner form warns if you pick QA). Webhooks go FullStackRx → TCM's public
+receiver.
 
 ## How QA uses it
 
-1. **In FullStackRx** (pharmacy admin on a *test* pharmacy): Settings → Partner connections → open or
-   create the connection → **Keys** → issue a key. On QA/staging use a `fsrx_live_` key on a test pharmacy;
+1. **In FullStackRx staging** (pharmacy admin on a *test* pharmacy): Settings → Partner connections → open
+   or create the connection → **Keys** → issue a key. Use a `fsrx_live_` key on a test pharmacy;
    `fsrx_test_` keys run every check and send webhooks but cancel themselves and create nothing.
 2. **In TCM:** Partner API Sim → **New partner**. One partner per connection you test; make as many as you
-   like. Enter a name, the environment, the **API base URL**, the key and (optionally) the `whsec_…` secret.
+   like. Enter a name, the environment (Staging), the **API base URL**, the key and (optionally) the
+   `whsec_…` secret.
    Keys are encrypted at rest and can be shown or copied again from the partner's *Connection & catalog* tab.
 3. Click **Sync connection & catalog** (`GET /v1/connection` and `/v1/catalog`). This caches the allowed
    states, SKUs, prices and shipping methods for the order builder.
@@ -68,8 +62,8 @@ Nothing is required beyond TCM's existing Supabase env vars, plus migrations `00
 | Var | Purpose |
 |---|---|
 | `PARTNER_SIM_ENCRYPTION_KEY` | 64 hex chars. Otherwise derived from `SUPABASE_SERVICE_ROLE_KEY`. Changing either makes stored keys unreadable (re-enter them). |
-| `PARTNER_SIM_QA_API_URL`, `PARTNER_SIM_STAGING_API_URL` | Pre-fill a new partner's API base URL. |
-| `PARTNER_SIM_QA_UI_URL`, `PARTNER_SIM_STAGING_UI_URL` | Link the environment's `/partner-api-docs`. |
+| `PARTNER_SIM_STAGING_API_URL` (and `_QA_`) | Pre-fill a new partner's API base URL. |
+| `PARTNER_SIM_STAGING_UI_URL` (and `_QA_`) | Link the environment's `/partner-api-docs`. |
 | `PARTNER_SIM_WEBHOOK_BASE_URL` | Origin shown in the webhook URL, if not the one TCM is browsed on. |
 
 ## Design notes
@@ -77,9 +71,8 @@ Nothing is required beyond TCM's existing Supabase env vars, plus migrations `00
 - Tables: `partner_sim_partners`, `partner_sim_prescribers`, `partner_sim_orders`, `partner_sim_webhook_events`
   (migrations `00045`, `00046`). RLS is on with no policies; route handlers check the TCM role with
   `withAuth('write')` and use the service-role client.
-- One transport (`src/lib/partner-sim/transport.ts`) makes every call, from the server or the browser; the
-  recorded request always has the key redacted. In browser mode the UI fetches the key from
-  `/api/partner-sim/partners/<id>/credentials` (QA/staging test keys only).
+- All Partner API calls are server-side (`src/lib/partner-sim/transport.ts`); the recorded request has the
+  key redacted. "Show key" reads `/api/partner-sim/partners/<id>/credentials` (staging test keys only).
 - The webhook receiver is `POST /api/webhooks/partner-sim/<partnerId>` (public, like the other
   `/api/webhooks/*` routes). It verifies `t=<unix>,v1=<hex HMAC-SHA256 of "<t>.<raw body>">` keyed with the
   whole `whsec_…` secret, refuses a `t` more than 300 s away, stores every delivery (valid or not) and answers

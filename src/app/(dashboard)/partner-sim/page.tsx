@@ -66,9 +66,9 @@ export default function PartnerSimPage() {
           secret, prescribers and orders.
         </Typography>
         <Alert severity="info" variant="outlined" sx={{ mb: 3, maxWidth: 820 }}>
-          Requests to QA go from your own browser, so turn the VPN on just as you do to use FullStackRx QA. These are
-          QA/staging keys only; after a partner has sent a batch of orders, TCM will remind you to swap its key for a
-          fresh one.
+          Test the Partner API on <strong>staging</strong>: TCM sends the requests from its server, and QA&apos;s
+          FullStackRx is only reachable on the VPN. Keys here are staging test keys only; after a partner has sent a
+          batch of orders, TCM reminds you to swap its key for a fresh one.
         </Alert>
 
         {error && <Alert severity="error">{error}</Alert>}
@@ -124,7 +124,7 @@ export default function PartnerSimPage() {
                     {p.connection?.pharmacyName ? `${p.connection.pharmacyName} · ${p.connection.status}` : 'Connection not checked yet'}
                   </Typography>
                   <Typography variant="caption" color="text.secondary" sx={{ display: 'block', wordBreak: 'break-all' }}>
-                    {p.api_base_url ?? 'no API base URL'} · from {p.call_mode === 'browser' ? 'your browser' : "TCM's server"}
+                    {p.api_base_url ?? 'no API base URL'}
                   </Typography>
                   <Typography variant="caption" color="text.secondary">
                     {p.catalog ? `${p.catalog.items?.length ?? 0} catalog items` : 'Catalog not synced'} · webhook secret{' '}
