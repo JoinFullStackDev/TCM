@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { performPartnerCall, redactKey } from '../transport';
 import { isValidApiBase, normalizeApiBase, UNREACHABLE_ENVIRONMENTS } from '../environments';
 
-const KEY = 'fsrx_live_Abc123_supersecretvalueldF8';
+const KEY = 'fsrx_live_Abc123_supersecretvalueZq9X';
 
 function fakeFetch(respond: (url: string, init: RequestInit) => Response | Promise<Response>) {
   const calls: { url: string; init: RequestInit }[] = [];
@@ -45,7 +45,7 @@ test('sends Bearer key, Idempotency-Key and JSON; reports a redacted Authorizati
   assert.deepEqual(r.body, { id: 'o-1', status: 'received' });
   assert.equal(r.headers['idempotent-replayed'], 'true');
   assert.equal(r.headers['set-cookie'], undefined, 'only the listed headers are kept');
-  assert.equal(r.requestHeaders.Authorization, 'Bearer fsrx_live_…ldF8');
+  assert.equal(r.requestHeaders.Authorization, 'Bearer fsrx_live_…Zq9X');
   assert.ok(!JSON.stringify(r).includes('supersecret'), 'the key never appears in the result');
 });
 
