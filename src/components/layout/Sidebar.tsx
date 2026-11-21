@@ -28,6 +28,7 @@ import AccountCircleOutlinedIcon from '@mui/icons-material/AccountCircleOutlined
 import InboxOutlinedIcon from '@mui/icons-material/InboxOutlined';
 import SmartToyOutlinedIcon from '@mui/icons-material/SmartToyOutlined';
 import GridViewOutlinedIcon from '@mui/icons-material/GridViewOutlined';
+import ScienceOutlinedIcon from '@mui/icons-material/ScienceOutlined';
 import FiberManualRecordIcon from '@mui/icons-material/FiberManualRecord';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
@@ -47,7 +48,7 @@ interface NavItem {
   icon: React.ReactNode;
   disabled?: boolean;
   adminOnly?: boolean;
-  permission?: 'view_webhooks' | 'soft_delete' | 'view_feedback' | 'docs:read';
+  permission?: 'view_webhooks' | 'soft_delete' | 'view_feedback' | 'docs:read' | 'write';
   group?: string;
 }
 
@@ -56,6 +57,8 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Projects',  href: '/projects', icon: <FolderOutlinedIcon />,    group: 'Testing' },
   { label: 'Test Runs', href: '/runs',     icon: <PlaylistPlayIcon />,       group: 'Testing' },
   { label: 'Reports',   href: '/reports',  icon: <AssessmentOutlinedIcon />, group: 'Testing' },
+  /** Partner API simulator: drives FullStackRx's Partner Order API. Editor+ (QA Engineer and above). */
+  { label: 'Partner API Sim', href: '/partner-sim', icon: <ScienceOutlinedIcon />, permission: 'write', group: 'Testing' },
   { label: 'Agents',    href: '/agents',   icon: <SmartToyOutlinedIcon />,   group: 'Intelligence' },
   { label: 'Registry',  href: '/registry', icon: <GridViewOutlinedIcon />,   group: 'Intelligence' },
   { label: 'Docs',      href: '/docs',     icon: <MenuBookOutlinedIcon />,   group: 'Intelligence' },

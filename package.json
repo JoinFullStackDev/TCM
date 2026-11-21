@@ -12,7 +12,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "playwright:auth": "node scripts/save-playwright-auth.mjs"
+    "playwright:auth": "node scripts/save-playwright-auth.mjs",
+    "test": "node --import ./scripts/test-resolve.mjs --test 'src/**/__tests__/*.test.ts'"
   },
   "keywords": [],
   "author": "",
