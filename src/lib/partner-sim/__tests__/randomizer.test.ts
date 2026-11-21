@@ -55,6 +55,11 @@ test('happy path builds a contract-valid order from the catalog and connection',
     assert.match(p.phone!, /^\d{3}55501\d{2}$/);
     assert.match(p.email!, /@example\.com$/);
     assert.ok(p.allergies.length > 0);
+    assert.ok(Array.isArray(p.conditions) && Array.isArray(p.medications), 'always sent, so never "Unknown"');
+    for (const list of [p.allergies, p.conditions!, p.medications!]) {
+      assert.equal(new Set(list).size, list.length, 'no duplicates');
+      for (const v of list) assert.ok(v.length > 0 && v.length <= 200 && !v.includes(','), v);
+    }
     const age = ageOn(p.dateOfBirth, today);
     assert.ok(age >= 18 && age <= 80, `age ${age}`);
 
@@ -90,6 +95,23 @@ test('happy path with no saved prescriber invents a valid one and warns it will 
   assert.equal(order.prescriber.stateLicense.state, order.patient.shipTo.state);
   assert.equal(warnings.length, 1);
   assert.match(warnings[0], /Partner Inbox/);
+});
+
+test('clinical info: real allergies, conditions and medications most of the time', () => {
+  let realAllergies = 0, withConditions = 0, withMeds = 0;
+  const runs = 400;
+  for (let seed = 1; seed <= runs; seed++) {
+    const { patient } = randomizeOrder('happy_path', ctx(seed)).order;
+    if (!(patient.allergies.length === 1 && patient.allergies[0] === 'NKDA')) realAllergies++;
+    else assert.deepEqual(patient.allergies, ['NKDA']);
+    if (patient.conditions!.length) withConditions++;
+    if (patient.medications!.length) withMeds++;
+    assert.ok(patient.conditions!.length <= 2 && patient.medications!.length <= 3);
+  }
+  // Roughly 75% / 80% / 80%; loose bounds keep this stable.
+  for (const [name, n] of [['allergies', realAllergies], ['conditions', withConditions], ['medications', withMeds]] as const) {
+    assert.ok(n > runs * 0.6 && n < runs * 0.95, `${name}: ${n}/${runs}`);
+  }
 });
 
 test('new prescriber never reuses a saved one', () => {
