@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { serverError, notFound } from '@/lib/api/helpers';
+import { serverError, notFound, validationError } from '@/lib/api/helpers';
+import { refreshOrderSchema } from '@/lib/validations/partner-sim';
 import { simAuth, loadPartnerTarget, orderSummaryFrom, ORDER_COLUMNS } from '@/lib/partner-sim/server';
 import { callPartnerApi } from '@/lib/partner-sim/client';
 
@@ -7,11 +8,17 @@ interface RouteContext {
   params: Promise<{ orderId: string }>;
 }
 
-/** GET /v1/orders/{id}: per-item status and tracking. */
-export async function POST(_request: Request, context: RouteContext) {
+/**
+ * GET /v1/orders/{id}: per-item status and tracking. With `call` in the body the browser
+ * already made the request and TCM only records the answer.
+ */
+export async function POST(request: Request, context: RouteContext) {
   const auth = await simAuth();
   if (!auth.ok) return auth.response;
   const { orderId } = await context.params;
+
+  const parsed = refreshOrderSchema.safeParse(await request.json().catch(() => ({})));
+  if (!parsed.success) return validationError(parsed.error.flatten());
 
   const { data: row, error } = await auth.db
     .from('partner_sim_orders')
@@ -24,15 +31,17 @@ export async function POST(_request: Request, context: RouteContext) {
     return NextResponse.json({ error: 'FullStackRx never accepted this request, so there is no order to read.' }, { status: 409 });
   }
 
-  const target = await loadPartnerTarget(auth.db, row.partner_id);
-  if (!target.ok) return target.response;
-
-  const call = await callPartnerApi({
-    baseUrl: target.baseUrl,
-    apiKey: target.apiKey,
-    method: 'GET',
-    path: `/v1/orders/${encodeURIComponent(row.fsrx_order_id)}`,
-  });
+  let call = parsed.data.call;
+  if (!call) {
+    const target = await loadPartnerTarget(auth.db, row.partner_id);
+    if (!target.ok) return target.response;
+    call = await callPartnerApi({
+      baseUrl: target.baseUrl,
+      apiKey: target.apiKey,
+      method: 'GET',
+      path: `/v1/orders/${encodeURIComponent(row.fsrx_order_id)}`,
+    });
+  }
 
   let order = null;
   if (call.status === 200) {

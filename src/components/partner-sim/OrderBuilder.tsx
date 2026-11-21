@@ -32,7 +32,8 @@ import { ALL_STATES } from '@/lib/partner-sim/fake-data';
 import type { OrderPreset } from '@/lib/partner-sim/types';
 import CallResultView from './CallResultView';
 import { HttpChip } from './StatusChip';
-import { problemCode, readError, type CallResult, type SimOrder, type SimPartner, type SimPrescriber } from './types';
+import { problemCode, type CallResult, type SimOrder, type SimPartner, type SimPrescriber } from './types';
+import { submitOrder, type SubmitBody } from './api';
 
 type Draft = Record<string, unknown>;
 type Path = (string | number)[];
@@ -179,22 +180,17 @@ export default function OrderBuilder({ partner, prescribers, orders, onSubmitted
     }
   };
 
-  const send = async (body: Record<string, unknown>) => {
+  const send = async (body: SubmitBody) => {
     setSubmitting(true);
     setSubmitError(null);
     try {
-      const res = await fetch(`/api/partner-sim/partners/${partner.id}/orders`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) {
-        setSubmitError(await readError(res));
+      const r = await submitOrder(partner, body);
+      if (!r.ok) {
+        setSubmitError(r.error);
         return;
       }
-      const data = (await res.json()) as SubmitResult;
-      setResult(data);
-      onSubmitted(data.order);
+      setResult(r.data);
+      onSubmitted(r.data.order);
     } finally {
       setSubmitting(false);
     }
@@ -203,7 +199,7 @@ export default function OrderBuilder({ partner, prescribers, orders, onSubmitted
   const handleSubmit = () => {
     const request = currentRequest();
     if (!request) return;
-    const body: Record<string, unknown> = { request, preset };
+    const body: SubmitBody = { request, preset };
     if (keyMode === 'none') body.send_idempotency_key = false;
     if (keyMode === 'custom') body.idempotency_key = customKey.trim();
     send(body);
@@ -618,7 +614,8 @@ export default function OrderBuilder({ partner, prescribers, orders, onSubmitted
             Send order
           </Button>
           <Typography variant="caption" color="text.secondary">
-            POST {partner.api_url ?? '…'}/v1/orders as {partner.name} ({partner.api_key_mode} key …{partner.api_key_last4})
+            POST {partner.api_url ?? '…'}/v1/orders from {partner.call_mode === 'browser' ? 'your browser' : "TCM's server"} as{' '}
+            {partner.name} ({partner.api_key_mode} key …{partner.api_key_last4})
           </Typography>
         </Box>
         {submitError && (

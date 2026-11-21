@@ -2,8 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { validationError, serverError } from '@/lib/api/helpers';
 import { createPartnerSchema } from '@/lib/validations/partner-sim';
 import { simAuth, PARTNER_PUBLIC_COLUMNS, encryptionKeyError } from '@/lib/partner-sim/server';
-import { encryptSecret, last4, apiKeyMode, MissingEncryptionKeyError } from '@/lib/partner-sim/crypto';
-import { listEnvironments, webhookBaseUrl } from '@/lib/partner-sim/environments';
+import {
+  encryptSecret,
+  encryptionConfigured,
+  last4,
+  apiKeyMode,
+  MissingEncryptionKeyError,
+} from '@/lib/partner-sim/crypto';
+import { DEFAULT_CALL_MODE, listEnvironments, webhookBaseUrl } from '@/lib/partner-sim/environments';
 
 export async function GET(request: NextRequest) {
   const auth = await simAuth();
@@ -19,7 +25,7 @@ export async function GET(request: NextRequest) {
     partners: data ?? [],
     environments: listEnvironments(),
     webhookBaseUrl: webhookBaseUrl(request.nextUrl.origin),
-    encryptionConfigured: /^[0-9a-fA-F]{64}$/.test(process.env.PARTNER_SIM_ENCRYPTION_KEY ?? ''),
+    encryptionConfigured: encryptionConfigured(),
   });
 }
 
@@ -46,9 +52,12 @@ export async function POST(request: Request) {
     .insert({
       name: input.name,
       environment: input.environment,
+      api_base_url: input.api_base_url,
+      call_mode: input.call_mode ?? DEFAULT_CALL_MODE[input.environment],
       api_key_encrypted: apiKeyEncrypted,
       api_key_last4: last4(input.api_key),
       api_key_mode: apiKeyMode(input.api_key),
+      api_key_set_at: new Date().toISOString(),
       webhook_secret_encrypted: secretEncrypted,
       webhook_secret_last4: input.webhook_secret ? last4(input.webhook_secret) : null,
       webhook_response_status: input.webhook_response_status ?? 200,

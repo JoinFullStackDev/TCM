@@ -17,6 +17,7 @@ import SyncIcon from '@mui/icons-material/Sync';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import MenuBookOutlinedIcon from '@mui/icons-material/MenuBookOutlined';
+import KeyOutlinedIcon from '@mui/icons-material/KeyOutlined';
 import PageTransition from '@/components/animations/PageTransition';
 import ConfirmDialog from '@/components/common/ConfirmDialog';
 import OrderBuilder from '@/components/partner-sim/OrderBuilder';
@@ -27,7 +28,8 @@ import PrescribersPanel from '@/components/partner-sim/PrescribersPanel';
 import ConnectionPanel from '@/components/partner-sim/ConnectionPanel';
 import PartnerFormDialog from '@/components/partner-sim/PartnerFormDialog';
 import { useAuth } from '@/components/providers/AuthProvider';
-import type { EnvironmentInfo } from '@/lib/partner-sim/environments';
+import { KEY_SWAP_REMINDER_AFTER, type EnvironmentInfo } from '@/lib/partner-sim/environments';
+import { syncPartner } from '@/components/partner-sim/api';
 import { readError, type CallResult, type SimOrder, type SimPartner, type SimPrescriber } from '@/components/partner-sim/types';
 
 type TabId = 'builder' | 'orders' | 'webhooks' | 'prescribers' | 'connection';
@@ -46,7 +48,7 @@ export default function PartnerSimDetailPage({ params }: { params: Promise<{ par
   const [openOrderId, setOpenOrderId] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [lastSync, setLastSync] = useState<{ connection: CallResult; catalog: CallResult } | null>(null);
-  const [editOpen, setEditOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState<false | 'edit' | 'swap'>(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
@@ -77,20 +79,23 @@ export default function PartnerSimDetailPage({ params }: { params: Promise<{ par
   }, [authLoading, loadPartner, loadPrescribers, loadOrders]);
 
   const sync = async () => {
+    if (!partner) return;
     setSyncing(true);
     try {
-      const res = await fetch(`/api/partner-sim/partners/${partnerId}/sync`, { method: 'POST' });
-      if (!res.ok) {
-        setToast(await readError(res));
+      const r = await syncPartner(partner);
+      if (!r.ok) {
+        setToast(r.error);
         return;
       }
-      const data = (await res.json()) as { partner: SimPartner; calls: { connection: CallResult; catalog: CallResult } };
+      const data = r.data;
       setPartner((p) => (p ? { ...p, ...data.partner } : data.partner));
       setLastSync(data.calls);
       const { connection, catalog } = data.calls;
       if (connection.ok && catalog.ok) setToast('Connection and catalog synced');
       else {
-        setToast(`Sync failed: connection ${connection.status ?? connection.error}, catalog ${catalog.status ?? catalog.error}`);
+        setToast(
+          connection.error ?? `Sync failed: connection ${connection.status ?? '—'}, catalog ${catalog.status ?? catalog.error ?? '—'}`,
+        );
         setTab('connection');
       }
     } finally {
@@ -134,6 +139,7 @@ export default function PartnerSimDetailPage({ params }: { params: Promise<{ par
   }
 
   const envLabel = environments.find((e) => e.id === partner.environment)?.label ?? partner.environment;
+  const keyOrders = partner.orders_with_current_key ?? 0;
 
   return (
     <PageTransition>
@@ -147,6 +153,7 @@ export default function PartnerSimDetailPage({ params }: { params: Promise<{ par
           </Typography>
           <Chip label={envLabel} size="small" />
           <Chip label={`${partner.api_key_mode} key …${partner.api_key_last4}`} size="small" color={partner.api_key_mode === 'live' ? 'warning' : 'info'} variant="outlined" />
+          <Chip label={partner.call_mode === 'browser' ? 'calls from your browser' : "calls from TCM's server"} size="small" variant="outlined" />
           {partner.connection?.status && <Chip label={`connection ${partner.connection.status}`} size="small" variant="outlined" />}
           <Box sx={{ flex: 1 }} />
           {partner.docs_url && (
@@ -154,7 +161,7 @@ export default function PartnerSimDetailPage({ params }: { params: Promise<{ par
               API docs
             </Button>
           )}
-          <Button size="small" startIcon={<EditOutlinedIcon />} onClick={() => setEditOpen(true)}>
+          <Button size="small" startIcon={<EditOutlinedIcon />} onClick={() => setEditOpen('edit')}>
             Edit
           </Button>
           <Button size="small" color="error" startIcon={<DeleteOutlineIcon />} onClick={() => setDeleteOpen(true)}>
@@ -165,10 +172,25 @@ export default function PartnerSimDetailPage({ params }: { params: Promise<{ par
           </Button>
         </Box>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          {partner.api_url ? `${partner.api_url}/v1` : `No API URL configured for ${envLabel}`}
+          {partner.api_url ? `${partner.api_url}/v1` : 'No API base URL: Edit the partner to add one'}
           {partner.connection?.pharmacyName ? ` · ${partner.connection.pharmacyName}` : ''}
           {partner.api_key_mode === 'test' ? ' · test key: every check runs and webhooks fire, but orders cancel themselves' : ''}
         </Typography>
+
+        {keyOrders >= KEY_SWAP_REMINDER_AFTER && (
+          <Alert
+            severity="warning"
+            sx={{ mb: 2 }}
+            action={
+              <Button color="inherit" size="small" startIcon={<KeyOutlinedIcon />} onClick={() => setEditOpen('swap')}>
+                Swap key
+              </Button>
+            }
+          >
+            This key (…{partner.api_key_last4}) has sent {keyOrders} orders since it was added. Time to swap it: issue a new
+            key on the connection&apos;s Keys tab in FullStackRx, revoke this one, and paste the new one here.
+          </Alert>
+        )}
 
         <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 2 }}>
           <Tab value="builder" label="Order builder" />
@@ -187,6 +209,8 @@ export default function PartnerSimDetailPage({ params }: { params: Promise<{ par
             onSubmitted={(o) => {
               upsertOrder(o);
               loadPrescribers();
+              // Keeps the "swap your key" reminder current without reloading the partner.
+              setPartner((p) => (p ? { ...p, orders_with_current_key: (p.orders_with_current_key ?? 0) + 1 } : p));
             }}
             onOpenOrder={setOpenOrderId}
           />
@@ -194,9 +218,10 @@ export default function PartnerSimDetailPage({ params }: { params: Promise<{ par
         {tab === 'orders' && <OrdersTable orders={orders} onOpen={setOpenOrderId} onReload={loadOrders} />}
         {tab === 'webhooks' && <WebhookEventsPanel partner={partner} orders={orders} onOpenOrder={setOpenOrderId} />}
         {tab === 'prescribers' && <PrescribersPanel partner={partner} prescribers={prescribers} onChanged={loadPrescribers} />}
-        {tab === 'connection' && <ConnectionPanel partner={partner} lastSync={lastSync} />}
+        {tab === 'connection' && <ConnectionPanel partner={partner} lastSync={lastSync} onSwapKey={() => setEditOpen('swap')} />}
 
         <OrderDetailDrawer
+          partner={partner}
           orderId={openOrderId}
           onClose={() => setOpenOrderId(null)}
           onChanged={upsertOrder}
@@ -204,7 +229,8 @@ export default function PartnerSimDetailPage({ params }: { params: Promise<{ par
         />
 
         <PartnerFormDialog
-          open={editOpen}
+          open={editOpen !== false}
+          swapKey={editOpen === 'swap'}
           environments={environments}
           partner={partner}
           onClose={() => setEditOpen(false)}

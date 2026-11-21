@@ -28,15 +28,24 @@ import CallResultView from './CallResultView';
 import EventTimeline from './EventTimeline';
 import JsonBlock from './JsonBlock';
 import { HttpChip, OrderStatusChip } from './StatusChip';
-import { formatTime, problemCode, readError, type CallResult, type SimEvent, type SimOrder } from './types';
+import { formatTime, problemCode, readError, type CallResult, type SimEvent, type SimOrder, type SimPartner } from './types';
+import { cancelOrder, refreshOrder, submitOrder } from './api';
 
 interface Detail {
   order: SimOrder;
-  attempts: { id: string; response_status: number | null; response_headers: Record<string, string> | null; created_at: string; retry_of: string | null }[];
+  attempts: {
+    id: string;
+    response_status: number | null;
+    response_headers: Record<string, string> | null;
+    fsrx_order_id: string | null;
+    created_at: string;
+    retry_of: string | null;
+  }[];
   events: SimEvent[];
 }
 
 interface Props {
+  partner: SimPartner;
   orderId: string | null;
   onClose: () => void;
   onChanged: (order: SimOrder) => void;
@@ -45,7 +54,7 @@ interface Props {
 
 const POLL_MS = 5000;
 
-export default function OrderDetailDrawer({ orderId, onClose, onChanged, onOpenOrder }: Props) {
+export default function OrderDetailDrawer({ partner, orderId, onClose, onChanged, onOpenOrder }: Props) {
   const [detail, setDetail] = useState<Detail | null>(null);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState<'refresh' | 'cancel' | 'retry' | null>(null);
@@ -77,20 +86,19 @@ export default function OrderDetailDrawer({ orderId, onClose, onChanged, onOpenO
   }, [orderId, load]);
 
   const act = async (kind: 'refresh' | 'cancel') => {
-    if (!orderId) return;
+    if (!orderId || !detail) return;
     setBusy(kind);
     setError(null);
     try {
-      const res = await fetch(`/api/partner-sim/orders/${orderId}/${kind}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: kind === 'cancel' ? JSON.stringify({ reason }) : '{}',
-      });
-      if (!res.ok) {
-        setError(await readError(res));
+      const r =
+        kind === 'cancel'
+          ? await cancelOrder(partner, detail.order, reason)
+          : await refreshOrder(partner, detail.order);
+      if (!r.ok) {
+        setError(r.error);
         return;
       }
-      const data = (await res.json()) as { order: SimOrder | null; call: CallResult };
+      const data = r.data;
       setLastCall({ label: kind === 'cancel' ? 'Cancel' : 'Refresh', call: data.call, body: kind === 'cancel' ? { reason } : undefined });
       if (data.order) onChanged(data.order);
       await load(orderId, true);
@@ -106,24 +114,19 @@ export default function OrderDetailDrawer({ orderId, onClose, onChanged, onOpenO
     setBusy('retry');
     setError(null);
     try {
-      const res = await fetch(`/api/partner-sim/partners/${o.partner_id}/orders`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          request: o.request_body,
-          idempotency_key: o.idempotency_key || undefined,
-          send_idempotency_key: !!o.idempotency_key,
-          retry_of: o.retry_of ?? o.id,
-          preset: o.preset ?? undefined,
-        }),
+      const r = await submitOrder(partner, {
+        request: o.request_body,
+        idempotency_key: o.idempotency_key || undefined,
+        send_idempotency_key: !!o.idempotency_key,
+        retry_of: o.retry_of ?? o.id,
+        preset: o.preset ?? undefined,
       });
-      if (!res.ok) {
-        setError(await readError(res));
+      if (!r.ok) {
+        setError(r.error);
         return;
       }
-      const data = (await res.json()) as { order: SimOrder; call: CallResult };
-      onChanged(data.order);
-      onOpenOrder(data.order.id);
+      onChanged(r.data.order);
+      onOpenOrder(r.data.order.id);
     } finally {
       setBusy(null);
     }
@@ -274,7 +277,10 @@ export default function OrderDetailDrawer({ orderId, onClose, onChanged, onOpenO
                       {i + 1}.
                     </Typography>
                     <HttpChip status={a.response_status} />
-                    {a.response_headers?.['idempotent-replayed'] && (
+                    {/* A browser can't read Idempotent-Replayed unless FullStackRx's CORS exposes it,
+                        so the same order id as the first send also counts as a replay. */}
+                    {(a.response_headers?.['idempotent-replayed'] ||
+                      (i > 0 && !!a.fsrx_order_id && a.fsrx_order_id === detail!.attempts[0].fsrx_order_id)) && (
                       <Typography variant="caption" color="warning.main">
                         replayed
                       </Typography>

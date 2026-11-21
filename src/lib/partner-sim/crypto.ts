@@ -1,10 +1,13 @@
 /**
  * AES-256-GCM encryption for partner API keys and webhook secrets at rest.
- * Key: PARTNER_SIM_ENCRYPTION_KEY, a 64-character hex string (32 bytes).
+ * These are QA/staging test keys, never production ones, so the bar is "not plaintext
+ * in the database", with no extra setup: the key is PARTNER_SIM_ENCRYPTION_KEY
+ * (64 hex chars) when set, otherwise derived from SUPABASE_SERVICE_ROLE_KEY. Changing
+ * either makes stored keys unreadable; QA then re-enters them.
  * Format: base64(iv[12] + authTag[16] + ciphertext), same as src/lib/google/tokenStore.ts.
  */
 
-import { createCipheriv, createDecipheriv, randomBytes } from 'crypto';
+import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'crypto';
 
 const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 12;
@@ -12,13 +15,31 @@ const AUTH_TAG_LENGTH = 16;
 
 export class MissingEncryptionKeyError extends Error {
   constructor() {
-    super('PARTNER_SIM_ENCRYPTION_KEY must be a 64-character hex string (32 bytes)');
+    super('Set PARTNER_SIM_ENCRYPTION_KEY (64 hex characters) or SUPABASE_SERVICE_ROLE_KEY on the server');
   }
 }
 
-function getKey(keyHex = process.env.PARTNER_SIM_ENCRYPTION_KEY): Buffer {
-  if (!keyHex || !/^[0-9a-fA-F]{64}$/.test(keyHex)) throw new MissingEncryptionKeyError();
-  return Buffer.from(keyHex, 'hex');
+/** The 32-byte key: an explicit hex key if given or configured, else one derived from the service-role key. */
+export function resolveEncryptionKey(
+  keyHex = process.env.PARTNER_SIM_ENCRYPTION_KEY,
+  fallbackSecret = process.env.SUPABASE_SERVICE_ROLE_KEY,
+): Buffer {
+  if (keyHex && /^[0-9a-fA-F]{64}$/.test(keyHex)) return Buffer.from(keyHex, 'hex');
+  if (fallbackSecret) return createHash('sha256').update(`tcm-partner-sim:${fallbackSecret}`).digest();
+  throw new MissingEncryptionKeyError();
+}
+
+export const encryptionConfigured = () => {
+  try {
+    resolveEncryptionKey();
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+function getKey(keyHex?: string): Buffer {
+  return keyHex === undefined ? resolveEncryptionKey() : resolveEncryptionKey(keyHex, '');
 }
 
 export function encryptSecret(plaintext: string, keyHex?: string): string {

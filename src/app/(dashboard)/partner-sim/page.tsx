@@ -46,8 +46,6 @@ export default function PartnerSimPage() {
     );
   }
 
-  const unconfigured = data?.environments.filter((e) => !e.apiUrl) ?? [];
-
   return (
     <PageTransition>
       <Box>
@@ -64,19 +62,19 @@ export default function PartnerSimPage() {
         <Typography variant="body2" color="text.secondary" sx={{ mb: 3, maxWidth: 820 }}>
           Act as a telehealth partner against FullStackRx&apos;s Partner Order API: save a partner&apos;s API key, sync its
           catalog, randomize valid (or deliberately broken) orders, send them, track their status and watch the signed
-          webhooks come back.
+          webhooks come back. Make one partner per FullStackRx connection you test; each keeps its own key, webhook
+          secret, prescribers and orders.
         </Typography>
+        <Alert severity="info" variant="outlined" sx={{ mb: 3, maxWidth: 820 }}>
+          Requests to QA go from your own browser, so turn the VPN on just as you do to use FullStackRx QA. These are
+          QA/staging keys only; after a partner has sent a batch of orders, TCM will remind you to swap its key for a
+          fresh one.
+        </Alert>
 
         {error && <Alert severity="error">{error}</Alert>}
         {data && !data.encryptionConfigured && (
           <Alert severity="error" sx={{ mb: 2 }}>
-            PARTNER_SIM_ENCRYPTION_KEY isn&apos;t set on the server (64 hex characters), so partner keys can&apos;t be saved.
-          </Alert>
-        )}
-        {unconfigured.length > 0 && data && (
-          <Alert severity="info" sx={{ mb: 2 }}>
-            No API URL configured for {unconfigured.map((e) => e.label).join(', ')} (
-            {unconfigured.map((e) => `PARTNER_SIM_${e.id.toUpperCase()}_API_URL`).join(', ')}).
+            The server can&apos;t encrypt keys: set PARTNER_SIM_ENCRYPTION_KEY or SUPABASE_SERVICE_ROLE_KEY.
           </Alert>
         )}
 
@@ -124,6 +122,9 @@ export default function PartnerSimPage() {
                   </Box>
                   <Typography variant="body2" color="text.secondary">
                     {p.connection?.pharmacyName ? `${p.connection.pharmacyName} · ${p.connection.status}` : 'Connection not checked yet'}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', wordBreak: 'break-all' }}>
+                    {p.api_base_url ?? 'no API base URL'} · from {p.call_mode === 'browser' ? 'your browser' : "TCM's server"}
                   </Typography>
                   <Typography variant="caption" color="text.secondary">
                     {p.catalog ? `${p.catalog.items?.length ?? 0} catalog items` : 'Catalog not synced'} · webhook secret{' '}

@@ -4,8 +4,8 @@ import { updatePartnerSchema } from '@/lib/validations/partner-sim';
 import { simAuth, PARTNER_PUBLIC_COLUMNS, encryptionKeyError } from '@/lib/partner-sim/server';
 import { encryptSecret, last4, apiKeyMode, MissingEncryptionKeyError } from '@/lib/partner-sim/crypto';
 import {
-  environmentApiUrl,
-  environmentDocsUrl,
+  docsUrlFor,
+  resolveApiBase,
   webhookBaseUrl,
   webhookUrlFor,
   type SimEnvironment,
@@ -28,12 +28,20 @@ export async function GET(request: NextRequest, context: RouteContext) {
   if (error) return serverError(error.message);
   if (!data) return notFound('Partner');
 
-  const env = (data as unknown as { environment: SimEnvironment }).environment;
+  const row = data as unknown as { environment: SimEnvironment; api_base_url: string | null; api_key_set_at: string };
+  // How many orders the current key has sent, for the "swap your key" reminder.
+  const { count } = await auth.db
+    .from('partner_sim_orders')
+    .select('id', { count: 'exact', head: true })
+    .eq('partner_id', partnerId)
+    .gte('created_at', row.api_key_set_at);
+
   return NextResponse.json({
     ...(data as object),
-    api_url: environmentApiUrl(env),
-    docs_url: environmentDocsUrl(env),
+    api_url: resolveApiBase(row),
+    docs_url: docsUrlFor(row.environment),
     webhook_url: webhookUrlFor(webhookBaseUrl(request.nextUrl.origin), partnerId),
+    orders_with_current_key: count ?? 0,
   });
 }
 
@@ -48,10 +56,12 @@ export async function PATCH(request: Request, context: RouteContext) {
 
   const update: Record<string, unknown> = { updated_at: new Date().toISOString() };
   if (input.name !== undefined) update.name = input.name;
+  if (input.call_mode !== undefined) update.call_mode = input.call_mode;
   if (input.webhook_response_status !== undefined) update.webhook_response_status = input.webhook_response_status;
-  if (input.environment !== undefined) {
-    update.environment = input.environment;
-    // A different environment means a different connection: drop the cached answers.
+  if (input.environment !== undefined) update.environment = input.environment;
+  if (input.api_base_url !== undefined) update.api_base_url = input.api_base_url;
+  if (input.environment !== undefined || input.api_base_url !== undefined) {
+    // Possibly a different FullStackRx: drop the cached answers so nothing stale is used.
     update.connection = null;
     update.connection_checked_at = null;
     update.catalog = null;
@@ -62,6 +72,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       update.api_key_encrypted = encryptSecret(input.api_key);
       update.api_key_last4 = last4(input.api_key);
       update.api_key_mode = apiKeyMode(input.api_key);
+      update.api_key_set_at = new Date().toISOString();
     }
     if (input.webhook_secret === null) {
       update.webhook_secret_encrypted = null;

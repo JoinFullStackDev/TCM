@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
-import { apiKeyMode, decryptSecret, encryptSecret, last4, MissingEncryptionKeyError } from '../crypto';
+import { apiKeyMode, decryptSecret, encryptSecret, last4, MissingEncryptionKeyError, resolveEncryptionKey } from '../crypto';
 
 const key = randomBytes(32).toString('hex');
 
@@ -26,6 +26,16 @@ test('a different key or tampered ciphertext fails to decrypt', () => {
 test('a missing or short key is a clear configuration error', () => {
   assert.throws(() => encryptSecret('x', ''), MissingEncryptionKeyError);
   assert.throws(() => encryptSecret('x', 'abcd'), MissingEncryptionKeyError);
+});
+
+test('without an explicit key, the encryption key is derived from the service-role key', () => {
+  const derivedA = resolveEncryptionKey(undefined, 'service-role-A');
+  assert.equal(derivedA.length, 32);
+  assert.deepEqual(resolveEncryptionKey('', 'service-role-A'), derivedA, 'stable for the same secret');
+  assert.notDeepEqual(resolveEncryptionKey(undefined, 'service-role-B'), derivedA);
+  // An explicit key wins over the fallback.
+  assert.deepEqual(resolveEncryptionKey(key, 'service-role-A'), Buffer.from(key, 'hex'));
+  assert.throws(() => resolveEncryptionKey('', ''), MissingEncryptionKeyError);
 });
 
 test('key mode and last 4', () => {

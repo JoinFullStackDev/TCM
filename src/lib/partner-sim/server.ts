@@ -12,12 +12,13 @@ import { withAuth, notFound, serverError } from '@/lib/api/helpers';
 import { createServiceClient } from '@/lib/supabase/server';
 import type { Permission } from '@/lib/auth/rbac';
 import { decryptSecret, MissingEncryptionKeyError } from './crypto';
-import { environmentApiUrl, ENVIRONMENT_LABELS, type SimEnvironment } from './environments';
+import { resolveApiBase, type CallMode, type SimEnvironment } from './environments';
 
-/** Everything about a partner that is safe to send to the browser. */
+/** Everything about a partner that the browser sees without asking for credentials. */
 export const PARTNER_PUBLIC_COLUMNS =
-  'id, name, environment, api_key_last4, api_key_mode, webhook_secret_last4, webhook_response_status, ' +
-  'connection, connection_checked_at, catalog, catalog_fetched_at, created_by, created_at, updated_at';
+  'id, name, environment, api_base_url, call_mode, api_key_last4, api_key_mode, api_key_set_at, ' +
+  'webhook_secret_last4, webhook_response_status, connection, connection_checked_at, catalog, ' +
+  'catalog_fetched_at, created_by, created_at, updated_at';
 
 /** Everything about an order row the browser sees. */
 export const ORDER_COLUMNS =
@@ -42,7 +43,7 @@ export async function simAuth(permission: Permission = 'write'): Promise<SimAuth
 
 export function encryptionKeyError() {
   return NextResponse.json(
-    { error: 'The simulator is not configured: set PARTNER_SIM_ENCRYPTION_KEY (64 hex characters) on the server.' },
+    { error: 'The simulator is not configured: set PARTNER_SIM_ENCRYPTION_KEY or SUPABASE_SERVICE_ROLE_KEY on the server.' },
     { status: 500 },
   );
 }
@@ -51,6 +52,8 @@ interface PartnerSecretsRow {
   id: string;
   name: string;
   environment: SimEnvironment;
+  api_base_url: string | null;
+  call_mode: CallMode;
   api_key_encrypted: string;
   webhook_secret_encrypted: string | null;
 }
@@ -59,27 +62,22 @@ export type PartnerTarget =
   | { ok: true; partner: PartnerSecretsRow; apiKey: string; baseUrl: string }
   | { ok: false; response: NextResponse };
 
-/** Loads a partner with its decrypted API key and its environment's base URL. */
+/** Loads a partner with its decrypted API key and its API base URL. */
 export async function loadPartnerTarget(db: SupabaseClient, partnerId: string): Promise<PartnerTarget> {
   const { data, error } = await db
     .from('partner_sim_partners')
-    .select('id, name, environment, api_key_encrypted, webhook_secret_encrypted')
+    .select('id, name, environment, api_base_url, call_mode, api_key_encrypted, webhook_secret_encrypted')
     .eq('id', partnerId)
     .maybeSingle();
   if (error) return { ok: false, response: serverError(error.message) };
   if (!data) return { ok: false, response: notFound('Partner') };
 
   const partner = data as PartnerSecretsRow;
-  const baseUrl = environmentApiUrl(partner.environment);
+  const baseUrl = resolveApiBase(partner);
   if (!baseUrl) {
     return {
       ok: false,
-      response: NextResponse.json(
-        {
-          error: `No API URL is configured for ${ENVIRONMENT_LABELS[partner.environment]}. Set PARTNER_SIM_${partner.environment.toUpperCase()}_API_URL on the server.`,
-        },
-        { status: 500 },
-      ),
+      response: NextResponse.json({ error: 'This partner has no API base URL. Edit it and add one.' }, { status: 400 }),
     };
   }
   try {
@@ -88,7 +86,7 @@ export async function loadPartnerTarget(db: SupabaseClient, partnerId: string): 
     if (err instanceof MissingEncryptionKeyError) return { ok: false, response: encryptionKeyError() };
     return {
       ok: false,
-      response: serverError('Could not decrypt the stored API key. Was PARTNER_SIM_ENCRYPTION_KEY changed? Re-enter the key.'),
+      response: serverError('Could not decrypt the stored API key (the server encryption key changed?). Edit the partner and paste the key again.'),
     };
   }
 }
@@ -96,7 +94,7 @@ export async function loadPartnerTarget(db: SupabaseClient, partnerId: string): 
 /** Pulls the order's status and FullStackRx id out of a create/get/cancel answer. */
 export function orderSummaryFrom(body: unknown): { fsrxOrderId: string | null; status: string | null } {
   if (!body || typeof body !== 'object') return { fsrxOrderId: null, status: null };
-  const b = body as { id?: unknown; status?: unknown; code?: unknown };
+  const b = body as { id?: unknown; status?: unknown };
   // A problem+json body also has a numeric status; only an order has a string one.
   if (typeof b.id !== 'string') return { fsrxOrderId: null, status: null };
   return { fsrxOrderId: b.id, status: typeof b.status === 'string' ? b.status : null };

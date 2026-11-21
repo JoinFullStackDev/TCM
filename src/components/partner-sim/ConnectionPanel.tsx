@@ -15,8 +15,95 @@ import IconButton from '@mui/material/IconButton';
 import Tooltip from '@mui/material/Tooltip';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import CheckIcon from '@mui/icons-material/Check';
+import Button from '@mui/material/Button';
+import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
+import VisibilityOffOutlinedIcon from '@mui/icons-material/VisibilityOffOutlined';
 import CallResultView from './CallResultView';
+import { getCredentials } from './api';
 import { formatTime, type CallResult, type SimPartner } from './types';
+
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <Tooltip title={copied ? 'Copied' : 'Copy'}>
+      <IconButton
+        size="small"
+        onClick={() => {
+          navigator.clipboard.writeText(text);
+          setCopied(true);
+          setTimeout(() => setCopied(false), 1500);
+        }}
+      >
+        {copied ? <CheckIcon fontSize="small" /> : <ContentCopyIcon fontSize="small" />}
+      </IconButton>
+    </Tooltip>
+  );
+}
+
+/** The saved API key and webhook secret, hidden until asked for. */
+function KeysSection({ partner, onSwapKey }: { partner: SimPartner; onSwapKey: () => void }) {
+  const [revealed, setRevealed] = useState<{ api_key: string; webhook_secret: string | null } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const toggle = async () => {
+    if (revealed) return setRevealed(null);
+    const r = await getCredentials(partner.id);
+    if (r.ok) setRevealed(r.data);
+    else setError(r.error);
+  };
+
+  const mono = { fontFamily: 'monospace', fontSize: '0.8rem', wordBreak: 'break-all' } as const;
+  return (
+    <Paper variant="outlined" sx={{ p: 2 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+        <Typography variant="subtitle2" sx={{ fontWeight: 700, flex: 1 }}>
+          Keys
+        </Typography>
+        <Button size="small" startIcon={revealed ? <VisibilityOffOutlinedIcon /> : <VisibilityOutlinedIcon />} onClick={toggle}>
+          {revealed ? 'Hide' : 'Show'}
+        </Button>
+        <Button size="small" onClick={onSwapKey}>
+          Swap key
+        </Button>
+      </Box>
+      <Row label="API key">
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+          <Typography sx={mono}>{revealed ? revealed.api_key : `fsrx_${partner.api_key_mode}_…${partner.api_key_last4}`}</Typography>
+          {revealed && <CopyButton text={revealed.api_key} />}
+        </Box>
+      </Row>
+      <Row label="Added">
+        {formatTime(partner.api_key_set_at)} · {partner.orders_with_current_key ?? 0} orders sent with it
+      </Row>
+      <Row label="Webhook secret">
+        {partner.webhook_secret_last4 ? (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <Typography sx={mono}>{revealed?.webhook_secret ?? `whsec_…${partner.webhook_secret_last4}`}</Typography>
+            {revealed?.webhook_secret && <CopyButton text={revealed.webhook_secret} />}
+          </Box>
+        ) : (
+          <Typography color="warning.main" variant="body2">
+            not saved
+          </Typography>
+        )}
+      </Row>
+      <Row label="Requests go">
+        {partner.call_mode === 'browser' ? (
+          <>
+            from <strong>your browser</strong> to {partner.api_url ?? '—'}/v1. For QA, have the VPN on. FullStackRx must
+            also allow this TCM site&apos;s origin in its CORS settings for /v1.
+          </>
+        ) : (
+          <>
+            from <strong>TCM&apos;s server</strong> to {partner.api_url ?? '—'}/v1, so the environment must be reachable
+            from the internet (staging, not VPN-only QA).
+          </>
+        )}
+      </Row>
+      {error && <Alert severity="error">{error}</Alert>}
+    </Paper>
+  );
+}
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -32,9 +119,10 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 interface Props {
   partner: SimPartner;
   lastSync: { connection: CallResult; catalog: CallResult } | null;
+  onSwapKey: () => void;
 }
 
-export default function ConnectionPanel({ partner, lastSync }: Props) {
+export default function ConnectionPanel({ partner, lastSync, onSwapKey }: Props) {
   const [copied, setCopied] = useState(false);
   const c = partner.connection;
   const cat = partner.catalog;
@@ -42,6 +130,8 @@ export default function ConnectionPanel({ partner, lastSync }: Props) {
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <KeysSection partner={partner} onSwapKey={onSwapKey} />
+
       <Paper variant="outlined" sx={{ p: 2 }}>
         <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
           Webhook receiver
@@ -73,11 +163,10 @@ export default function ConnectionPanel({ partner, lastSync }: Props) {
           {partner.webhook_secret_last4 ? `whsec_…${partner.webhook_secret_last4}` : <Typography color="warning.main" variant="body2">not saved</Typography>}
         </Row>
         <Row label="Receiver answers">{partner.webhook_response_status}</Row>
-        {partner.webhook_url?.includes('localhost') && (
+        {/^https?:\/\/(localhost|127\.0\.0\.1)[:/]/.test(partner.webhook_url ?? '') && (
           <Alert severity="info" sx={{ mt: 1 }}>
-            FullStackRx can&apos;t reach &quot;localhost&quot; from QA/staging, and the local API in Docker needs
-            host.docker.internal. Set PARTNER_SIM_WEBHOOK_BASE_URL (e.g. http://host.docker.internal:3000) for local
-            testing, or use the deployed TCM URL.
+            This is a local TCM address, which FullStackRx on QA or staging can&apos;t reach. Use the deployed TCM for
+            webhooks.
           </Alert>
         )}
       </Paper>

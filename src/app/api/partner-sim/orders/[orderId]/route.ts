@@ -26,7 +26,7 @@ export async function GET(_request: Request, context: RouteContext) {
     row.idempotency_key
       ? auth.db
           .from('partner_sim_orders')
-          .select('id, response_status, response_headers, created_at, retry_of')
+          .select('id, response_status, response_headers, fsrx_order_id, created_at, retry_of')
           .eq('partner_id', row.partner_id)
           .eq('idempotency_key', row.idempotency_key)
           .order('created_at', { ascending: true })

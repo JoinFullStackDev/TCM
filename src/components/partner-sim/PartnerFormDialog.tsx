@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
@@ -11,8 +11,19 @@ import MenuItem from '@mui/material/MenuItem';
 import Alert from '@mui/material/Alert';
 import Stack from '@mui/material/Stack';
 import FormControlLabel from '@mui/material/FormControlLabel';
+import FormLabel from '@mui/material/FormLabel';
 import Checkbox from '@mui/material/Checkbox';
-import type { EnvironmentInfo } from '@/lib/partner-sim/environments';
+import RadioGroup from '@mui/material/RadioGroup';
+import Radio from '@mui/material/Radio';
+import Typography from '@mui/material/Typography';
+import {
+  DEFAULT_CALL_MODE,
+  isValidApiBase,
+  type CallMode,
+  type EnvironmentInfo,
+  type SimEnvironment,
+} from '@/lib/partner-sim/environments';
+import { forgetCredentials } from './api';
 import { readError, type SimPartner } from './types';
 
 interface Props {
@@ -20,38 +31,65 @@ interface Props {
   environments: EnvironmentInfo[];
   /** Present when editing. */
   partner?: SimPartner | null;
+  /** Editing only: open straight on the API key, for swapping it. */
+  swapKey?: boolean;
   onClose: () => void;
   onSaved: (partner: SimPartner) => void;
 }
 
 const RESPONSE_STATUSES = [200, 202, 204, 400, 404, 410, 429, 500, 503];
 
-export default function PartnerFormDialog({ open, environments, partner, onClose, onSaved }: Props) {
+export default function PartnerFormDialog({ open, environments, partner, swapKey, onClose, onSaved }: Props) {
   const editing = !!partner;
   const [name, setName] = useState('');
-  const [environment, setEnvironment] = useState('qa');
+  const [environment, setEnvironment] = useState<SimEnvironment>('qa');
+  const [apiBaseUrl, setApiBaseUrl] = useState('');
+  const [callMode, setCallMode] = useState<CallMode>('browser');
   const [apiKey, setApiKey] = useState('');
   const [secret, setSecret] = useState('');
   const [removeSecret, setRemoveSecret] = useState(false);
   const [responseStatus, setResponseStatus] = useState(200);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const keyRef = useRef<HTMLInputElement>(null);
+
+  const envDefault = (id: SimEnvironment) => environments.find((e) => e.id === id)?.defaultApiUrl ?? '';
 
   useEffect(() => {
     if (!open) return;
+    const env = partner?.environment ?? 'qa';
     setName(partner?.name ?? '');
-    setEnvironment(partner?.environment ?? environments.find((e) => e.apiUrl)?.id ?? 'qa');
+    setEnvironment(env);
+    setApiBaseUrl(partner?.api_base_url ?? partner?.api_url ?? envDefault(env));
+    setCallMode(partner?.call_mode ?? DEFAULT_CALL_MODE[env]);
     setApiKey('');
     setSecret('');
     setRemoveSecret(false);
     setResponseStatus(partner?.webhook_response_status ?? 200);
     setError(null);
-  }, [open, partner, environments]);
+    if (swapKey) setTimeout(() => keyRef.current?.focus(), 100);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, partner, swapKey]);
+
+  const changeEnvironment = (next: SimEnvironment) => {
+    // Follow the environment's defaults unless QA already typed something else.
+    if (!apiBaseUrl || apiBaseUrl === envDefault(environment)) setApiBaseUrl(envDefault(next));
+    if (callMode === DEFAULT_CALL_MODE[environment]) setCallMode(DEFAULT_CALL_MODE[next]);
+    setEnvironment(next);
+  };
+
+  const urlOk = isValidApiBase(apiBaseUrl);
 
   const handleSave = async () => {
     setSaving(true);
     setError(null);
-    const body: Record<string, unknown> = { name, environment, webhook_response_status: responseStatus };
+    const body: Record<string, unknown> = {
+      name,
+      environment,
+      api_base_url: apiBaseUrl,
+      call_mode: callMode,
+      webhook_response_status: responseStatus,
+    };
     if (apiKey.trim()) body.api_key = apiKey.trim();
     if (removeSecret) body.webhook_secret = null;
     else if (secret.trim()) body.webhook_secret = secret.trim();
@@ -66,20 +104,27 @@ export default function PartnerFormDialog({ open, environments, partner, onClose
         setError(await readError(res));
         return;
       }
-      onSaved(await res.json());
+      const saved = (await res.json()) as SimPartner;
+      forgetCredentials(saved.id);
+      onSaved(saved);
       onClose();
     } finally {
       setSaving(false);
     }
   };
 
-  const env = environments.find((e) => e.id === environment);
-
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>{editing ? `Edit ${partner!.name}` : 'New test partner'}</DialogTitle>
+      <DialogTitle>{editing ? (swapKey ? `Swap the key for ${partner!.name}` : `Edit ${partner!.name}`) : 'New test partner'}</DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ mt: 1 }}>
+          {swapKey && (
+            <Alert severity="info">
+              In FullStackRx, open the connection&apos;s <strong>Keys</strong> tab, issue a new key, and revoke the old one.
+              Paste the new key below. (Sending one order with the old key afterwards is a good check: it should get 401
+              key_revoked.)
+            </Alert>
+          )}
           <TextField
             label="Name"
             value={name}
@@ -87,78 +132,103 @@ export default function PartnerFormDialog({ open, environments, partner, onClose
             placeholder="e.g. Acme Telehealth (QA)"
             size="small"
             required
-            autoFocus
+            autoFocus={!swapKey}
           />
           <TextField
             select
             label="FullStackRx environment"
             value={environment}
-            onChange={(e) => setEnvironment(e.target.value)}
+            onChange={(e) => changeEnvironment(e.target.value as SimEnvironment)}
             size="small"
-            helperText={
-              env?.apiUrl
-                ? `Calls ${env.apiUrl}/v1`
-                : `No API URL configured for ${env?.label ?? environment}: set PARTNER_SIM_${environment.toUpperCase()}_API_URL`
-            }
-            error={!!env && !env.apiUrl}
           >
             {environments.map((e) => (
               <MenuItem key={e.id} value={e.id}>
                 {e.label}
-                {e.apiUrl ? '' : ' (not configured)'}
               </MenuItem>
             ))}
           </TextField>
           <TextField
-            label={editing ? `API key (stored: …${partner!.api_key_last4}; leave blank to keep)` : 'API key'}
+            label="API base URL"
+            value={apiBaseUrl}
+            onChange={(e) => setApiBaseUrl(e.target.value)}
+            placeholder="https://<FullStackRx API host>"
+            size="small"
+            required
+            error={!!apiBaseUrl && !urlOk}
+            helperText="The FullStackRx API host for this environment, with or without /v1. The simulator calls <this>/v1/orders."
+          />
+          <div>
+            <FormLabel sx={{ fontSize: '0.8rem' }}>Send requests from</FormLabel>
+            <RadioGroup value={callMode} onChange={(e) => setCallMode(e.target.value as CallMode)}>
+              <FormControlLabel
+                value="browser"
+                control={<Radio size="small" />}
+                label={
+                  <Typography variant="body2">
+                    <strong>My browser</strong> (QA). Works wherever your machine can reach FullStackRx, e.g. on the VPN.
+                  </Typography>
+                }
+              />
+              <FormControlLabel
+                value="server"
+                control={<Radio size="small" />}
+                label={
+                  <Typography variant="body2">
+                    <strong>TCM&apos;s server</strong> (staging). Only for environments reachable from the internet.
+                  </Typography>
+                }
+              />
+            </RadioGroup>
+          </div>
+          <TextField
+            inputRef={keyRef}
+            label={editing ? `API key (current: …${partner!.api_key_last4}; leave blank to keep)` : 'API key'}
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}
             placeholder="fsrx_test_… or fsrx_live_…"
             size="small"
-            type="password"
             autoComplete="off"
-            required={!editing}
-            helperText="From FullStackRx: Settings → Partner connections → the connection → Keys. Test keys run every check but create nothing; on QA/staging use a live key on a test pharmacy."
+            required={!editing || swapKey}
+            helperText="FullStackRx: Settings → Partner connections → the connection → Keys. Test keys run every check but create nothing; on QA/staging use a live key on a test pharmacy."
           />
-          <TextField
-            label={
-              editing && partner!.webhook_secret_last4
-                ? `Webhook signing secret (stored: …${partner!.webhook_secret_last4}; leave blank to keep)`
-                : 'Webhook signing secret (optional)'
-            }
-            value={secret}
-            onChange={(e) => setSecret(e.target.value)}
-            placeholder="whsec_…"
-            size="small"
-            type="password"
-            autoComplete="off"
-            disabled={removeSecret}
-            helperText="Shown once on the connection's Webhooks tab. Used to verify FullStackRx-Signature on received events."
-          />
-          {editing && partner!.webhook_secret_last4 && (
-            <FormControlLabel
-              control={<Checkbox checked={removeSecret} onChange={(e) => setRemoveSecret(e.target.checked)} />}
-              label="Remove the stored webhook secret"
-            />
+          {!swapKey && (
+            <>
+              <TextField
+                label={
+                  editing && partner!.webhook_secret_last4
+                    ? `Webhook signing secret (current: …${partner!.webhook_secret_last4}; leave blank to keep)`
+                    : 'Webhook signing secret (optional)'
+                }
+                value={secret}
+                onChange={(e) => setSecret(e.target.value)}
+                placeholder="whsec_…"
+                size="small"
+                autoComplete="off"
+                disabled={removeSecret}
+                helperText="Shown on the connection's Webhooks tab. Used to check FullStackRx-Signature on received webhooks."
+              />
+              {editing && partner!.webhook_secret_last4 && (
+                <FormControlLabel
+                  control={<Checkbox checked={removeSecret} onChange={(e) => setRemoveSecret(e.target.checked)} />}
+                  label="Remove the saved webhook secret"
+                />
+              )}
+              <TextField
+                select
+                label="Webhook receiver answers with"
+                value={responseStatus}
+                onChange={(e) => setResponseStatus(Number(e.target.value))}
+                size="small"
+                helperText="Keep 200 normally. Pick a 4xx/5xx to watch FullStackRx retry and mark deliveries failed."
+              >
+                {RESPONSE_STATUSES.map((s) => (
+                  <MenuItem key={s} value={s}>
+                    {s}
+                  </MenuItem>
+                ))}
+              </TextField>
+            </>
           )}
-          <TextField
-            select
-            label="Webhook receiver answers with"
-            value={responseStatus}
-            onChange={(e) => setResponseStatus(Number(e.target.value))}
-            size="small"
-            helperText="Keep 200 normally. Pick a 4xx/5xx to watch FullStackRx retry and mark deliveries failed."
-          >
-            {RESPONSE_STATUSES.map((s) => (
-              <MenuItem key={s} value={s}>
-                {s}
-              </MenuItem>
-            ))}
-          </TextField>
-          <Alert severity="info" variant="outlined">
-            Keys and secrets are encrypted at rest and only used server-side. After saving, TCM only shows their last 4
-            characters.
-          </Alert>
           {error && <Alert severity="error">{error}</Alert>}
         </Stack>
       </DialogContent>
@@ -169,9 +239,9 @@ export default function PartnerFormDialog({ open, environments, partner, onClose
         <Button
           variant="contained"
           onClick={handleSave}
-          disabled={saving || !name.trim() || (!editing && !apiKey.trim())}
+          disabled={saving || !name.trim() || !urlOk || ((!editing || swapKey) && !apiKey.trim())}
         >
-          {saving ? 'Saving…' : editing ? 'Save' : 'Create partner'}
+          {saving ? 'Saving…' : swapKey ? 'Save new key' : editing ? 'Save' : 'Create partner'}
         </Button>
       </DialogActions>
     </Dialog>

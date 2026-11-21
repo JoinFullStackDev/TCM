@@ -1,12 +1,15 @@
 import type { PartnerCatalog, PartnerConnection, PartnerOrderResponse } from '@/lib/partner-sim/types';
-import type { SimEnvironment, EnvironmentInfo } from '@/lib/partner-sim/environments';
+import type { SimEnvironment, EnvironmentInfo, CallMode } from '@/lib/partner-sim/environments';
 
 export interface SimPartner {
   id: string;
   name: string;
   environment: SimEnvironment;
+  api_base_url: string | null;
+  call_mode: CallMode;
   api_key_last4: string;
   api_key_mode: 'test' | 'live';
+  api_key_set_at: string;
   webhook_secret_last4: string | null;
   webhook_response_status: number;
   connection: PartnerConnection | null;
@@ -19,6 +22,7 @@ export interface SimPartner {
   api_url?: string | null;
   docs_url?: string | null;
   webhook_url?: string;
+  orders_with_current_key?: number;
 }
 
 export interface SimPartnersResponse {
