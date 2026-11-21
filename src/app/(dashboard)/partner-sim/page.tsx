@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
@@ -25,15 +25,18 @@ export default function PartnerSimPage() {
   const [error, setError] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
 
-  const load = useCallback(async () => {
-    const res = await fetch('/api/partner-sim/partners');
-    if (res.ok) setData(await res.json());
-    else setError(res.status === 403 ? 'The Partner API simulator needs the QA Engineer role or above.' : `Could not load partners (${res.status})`);
-  }, []);
-
   useEffect(() => {
-    if (!authLoading) load();
-  }, [authLoading, load]);
+    if (authLoading) return;
+    let active = true;
+    fetch('/api/partner-sim/partners').then(async (res) => {
+      if (!active) return;
+      if (res.ok) setData(await res.json());
+      else setError(res.status === 403 ? 'The Partner API simulator needs the QA Engineer role or above.' : `Could not load partners (${res.status})`);
+    });
+    return () => {
+      active = false;
+    };
+  }, [authLoading]);
 
   if (authLoading || (!data && !error)) {
     return (

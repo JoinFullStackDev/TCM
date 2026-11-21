@@ -32,17 +32,29 @@ export default function WebhookEventsPanel({ partner, orders, onOpenOrder }: Pro
   const [open, setOpen] = useState<string | null>(null);
   const [auto, setAuto] = useState(true);
 
-  const load = useCallback(async () => {
+  const fetchEvents = useCallback(async (): Promise<SimEvent[] | null> => {
     const res = await fetch(`/api/partner-sim/partners/${partner.id}/events`);
-    if (res.ok) setEvents(await res.json());
+    return res.ok ? res.json() : null;
   }, [partner.id]);
 
+  const load = useCallback(async () => {
+    const next = await fetchEvents();
+    if (next) setEvents(next);
+  }, [fetchEvents]);
+
   useEffect(() => {
-    load();
-    if (!auto) return;
-    const timer = setInterval(load, 10_000);
-    return () => clearInterval(timer);
-  }, [load, auto]);
+    let active = true;
+    const tick = () =>
+      fetchEvents().then((next) => {
+        if (active && next) setEvents(next);
+      });
+    tick();
+    const timer = auto ? setInterval(tick, 10_000) : undefined;
+    return () => {
+      active = false;
+      if (timer) clearInterval(timer);
+    };
+  }, [fetchEvents, auto]);
 
   const orderFor = (e: SimEvent) =>
     e.fsrx_order_id ? orders.find((o) => o.fsrx_order_id === e.fsrx_order_id && !o.retry_of) : undefined;
